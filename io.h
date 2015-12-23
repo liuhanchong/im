@@ -5,10 +5,7 @@
 #include <fcntl.h>
 
 /*打开文件*/
-int openfile(const char *path);
-
-/*创建文件*/
-int createfile(const char *path);
+int openfile(const char *path, int flag, mode_t mode);
 
 /*复制一个文件描述符，共享一个文件句柄*/
 int dupfile(const int fileno);
@@ -20,7 +17,10 @@ int rmfile(const char *path);
 int closefile(int fileno);
 
 /*读取一行*/
-int readline(int fileno);
+int readline(int fileno, char *text, int size);
+
+/*读数据*/
+int readfile(int fileno, char *text, int size);
 
 /*从头跳转指定位置*/
 int offsethead(int fileno, off_t off);

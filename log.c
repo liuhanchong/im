@@ -136,9 +136,7 @@ void debuginfo(const char *format, ...)
 	if (size <= 0)
 	{
 		return;
-	}
-
-	
+	}	
 }
 
 /*打印执行错误信息*/
