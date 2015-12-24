@@ -47,7 +47,7 @@ int readline(int fileno, char *text, int size)
 
 		//判断当前读取的字符串是否有'\n'
 		int templen = sumlen;
-		chat *find = strchr(temptext, '\n'); 
+		char *find = strchr(temptext, '\n'); 
 		if (find)
 		{
 			*find = '\0';
@@ -58,7 +58,7 @@ int readline(int fileno, char *text, int size)
 			sumlen += tempsize;
 		}
 
-		strncpy((templen + sumlen), temptext, tempsize - templen);
+		strncpy((text + sumlen), temptext, tempsize - templen);
 	}
 
 	if (sumlen <= 0)

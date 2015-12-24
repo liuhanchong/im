@@ -1,12 +1,8 @@
-/*
-日志信息
-	*debug
-	*程序执行
-	*数据记录 
-*/
-
 #ifndef LOG_H
 #define LOG_H
+
+/*标记errno号码的类型*/
+typedef int errno_t;
 
 /*初始化log*/
 int openlog();
@@ -21,7 +17,7 @@ void debuginfo(const char *format, ...);
 void errorinfo(const char *format, ...);
 
 /*打印系统错误信息*/
-void errorinfo_errno(const char *fun, errno_t errno);
+void errorinfo_errno(const char *fun, errno_t errorno);
 
 /*调用此函数后程序自动退出*/
 void dumpinfo(const char *format, ...);
