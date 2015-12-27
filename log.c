@@ -1,4 +1,3 @@
-#include "log.h"
 #include "common.h"
 #include "io.h"
 #include <stdarg.h>
@@ -9,82 +8,120 @@
 #include <errno.h>
 #include <stdlib.h>
 
-#define LOGTYPE 3
-#define LOGSIZE 400
-#define LOGNAMELEN 256
+#define LOGTYPE 3 /*日志的分类 debug error dump等*/
+#define LOGSIZE 400 /*m每条日志信息最大长度*/
+#define LOGNAMELEN 256 /*日志路径最大长度*/
+#define LOGFILEMAXSIZE 5 /*每个日志文件最大的长度（MB）*/
 
 /*日志模块的配置信息结构体*/
 typedef struct log
 {
-	/*运行状态*/
-	int run;
-	/*保存日志文件类型的文件描述符*/
-	int filearray[LOGTYPE]; /*0-debug 1-error 2.dump*/
-	/*日志锁*/
-	pthread_mutex_t logmutex;
+	int run; /*运行状态*/
+	int filearray[LOGTYPE]; /*保存日志文件类型的文件描述符 0-debug 1-error 2.dump*/
+	pthread_mutex_t logmutex;/*日志锁*/
+	char *title[LOGTYPE]; /*保存日志文件标题*/
 } log;
 
 static log logs; 
 
-static int combinelog(char *title, char *log, va_list arg_list, const char *format)
+/*合并日志信息*/
+static int combinelog(char *title, char *log, int logsize,
+						 va_list arg_list, const char *format)
 {
-	/*定义打印调试信息*/
 	char info[LOGSIZE];
 	if (vsnprintf(info, LOGSIZE, format, arg_list) > 0)
 	{
-		return snprintf(log, LOGSIZE + 100, "%s:%s\r\n", title, info);
+		return snprintf(log, logsize, "%s:%s\r\n", title, info);
 	}
 
 	return 0;
 }
 
-static void generatefilename(char *name, int size, char *title)
+/*生成文件名*/
+static int genfilename(char *name, int size, char *title)
 {
 	memset(name, 0, size);
 
-	const int timesize = 20;
-	char timestr[timesize];
+	//获取当前时间
 	time_t curtime = time(NULL);
-	struct tm *strutm = gmtime(&curtime);
+	struct tm *strutm = localtime(&curtime);
+	strutm->tm_year += 1900;
+	strutm->tm_mon += 1;
 
+	//组合文件名
 	if (strutm && 
-		snprintf(timestr, timesize, "%d%d%d%d%d%d", 
+		snprintf(name, size, "%s_%d%d%d%d%d%d.log", title, 
 			strutm->tm_year, strutm->tm_mon, strutm->tm_mday,
 			 strutm->tm_hour, strutm->tm_min, strutm->tm_sec) > 0)
 	{
-		snprintf(name, size, "%s_%s.log", title, timestr);
-		return;
+		return SUCCESS;
 	}
 
 	strncpy(name, "temp.log", 8);
+	return FAILED;
 }
 
-static void writelog(int logtype, const char *log, int size)
+/*生成日志文件*/
+static int genlogfile(char *title)
 {
-	int fileno = -1;
+	char name[LOGNAMELEN];
+	int flag = O_WRONLY | O_CREAT | O_EXCL | O_APPEND;
+	mode_t mode = S_IRUSR | S_IWUSR;
+
+	/*生成文件名*/
+	if (genfilename(name, LOGNAMELEN, title) != SUCCESS)
+	{
+		return -1;
+	}
+
+	/*此处必须为创建新的不存在文件*/
+	return openfile(name, flag, mode);
+}
+
+static int writelog(int logtype, const char *log, int size)
+{
+	int index = 0;
 	switch (logtype)
 	{
 	case 1: /*debug*/
-		fileno = logs.filearray[0];
+		index = 0;
 		break;
 
 	case 2: /*error*/
-		fileno = logs.filearray[1];
+		index = 1;
 		break;
 
 	case 3: /*dump*/
-		fileno = logs.filearray[2];
+		index = 2;
 		break;
 
-	default:
-		fileno = logs.filearray[0];
+	default: /*debug*/
+		index = 0;
 		break;
 	}
+
+	int fileno = logs.filearray[index];
+	char *title = logs.title[index];
 
 	if (writefile(fileno, log, size) != size)
 	{
-		printf("%s:%s,errorno:%d\n", "writelog", "日志写入失败", errno);
+		return FAILED;
 	}
+
+	//日志文件过大
+	if (filelen(fileno) >= LOGFILEMAXSIZE)
+	{
+		int tempfileno = -1;
+		if (((tempfileno = genlogfile(title)) == -1) || (closefile(fileno) != 0))
+		{
+			return FAILED;
+		}
+
+		//成功后才将最新的文件描述符保存
+		logs.filearray[index] = tempfileno;
+	}
+
+	return SUCCESS;
 }
 
 /*初始化log*/
@@ -94,24 +131,26 @@ int openlog()
 
 	char *title[LOGTYPE] = 
 	{
-		"debug",/*debug信息*/
-		"error",/*错误信息*/
-		"dump"/*崩溃信息*/
+		"./logfile/debug",/*debug信息*/
+		"./logfile/error",/*错误信息*/
+		"./logfile/dump"/*崩溃信息*/
 	};
 
-	int flag = O_WRONLY | O_CREAT | O_EXCL | O_APPEND;
-	mode_t mode = S_IRUSR | S_IWUSR;
-	char name[LOGNAMELEN];
 	for (int i = 0; i < LOGTYPE; i++)
 	{
-		generatefilename(name, LOGNAMELEN, title[i]);
-		logs.filearray[i] = openfile(name, flag, mode);
-		if (logs.filearray[i] == -1)
+		logs.title[i] = title[i];
+	}
+
+	for (int i = 0; i < LOGTYPE; i++)
+	{
+		/*此处必须为创建新的不存在文件*/
+		if ((logs.filearray[i] = genlogfile(logs.title[i])) == -1)
 		{
 			return FAILED;
 		}
 	}
 
+	/*初始互斥量*/
 	pthread_mutexattr_t mutexattr;
 	if (pthread_mutexattr_init(&mutexattr) != 0)
 	{
@@ -126,6 +165,7 @@ int openlog()
 
 	pthread_mutexattr_destroy(&mutexattr);
 	
+	/*日志模块运行*/
 	logs.run = 1;
 
 	return SUCCESS;
@@ -138,10 +178,16 @@ int closelog()
 
 	for (int i = 0; i < LOGTYPE; i++)
 	{
-		closefile(logs.filearray[i]);
+		if (closefile(logs.filearray[i]) != 0)
+		{
+			return FAILED;
+		}
 	}
 
-	pthread_mutex_destroy(&logs.logmutex);
+	if (pthread_mutex_destroy(&logs.logmutex) != 0)
+	{
+		return FAILED;
+	}
 
 	return SUCCESS;
 }
@@ -149,30 +195,29 @@ int closelog()
 /*打印程序的调试信息*/
 void debuginfo(const char *format, ...)
 {
-
 #ifndef PRINTDEBUG
 	return;
-#endif
-
+#else
 	if (!format)
 	{
 		return;
 	}
 
 	int size = 0;
-	char log[LOGSIZE + 100];
+	const int logsize = LOGSIZE + 20;
+	char log[logsize];
 
 	va_list arg_list;
 	va_start(arg_list, format);
-	size = combinelog("debug", log, arg_list, format);
+	size = combinelog("debug", log, logsize, arg_list, format);
 	va_end(arg_list);
 
-	if (size <= 0)
+	if (size <= 0 || writelog(1, log, size) != SUCCESS)
 	{
-		return;
+		//出现问题
 	}
+#endif
 
-	writelog(1, log, size);
 }
 
 /*打印执行错误信息*/
@@ -184,19 +229,18 @@ void errorinfo(const char *format, ...)
 	}
 
 	int size = 0;
-	char log[LOGSIZE + 100];
+	const int logsize = LOGSIZE + 20;
+	char log[logsize];
 
 	va_list arg_list;
 	va_start(arg_list, format);
-	size = combinelog("error", log, arg_list, format);
+	size = combinelog("error", log, logsize, arg_list, format);
 	va_end(arg_list);
 
-	if (size <= 0)
+	if (size <= 0 || writelog(2, log, size) != SUCCESS)
 	{
-		return;
+		//出现问题
 	}
-
-	writelog(2, log, size);
 }
 
 /*打印系统错误信息*/
@@ -207,7 +251,6 @@ void errorinfo_errno(const char *fun, errno_t errorno)
 		return;
 	}
 
-	/*定义打印调试信息*/
 	char *perror = strerror(errorno);
 	if (!perror)
 	{
@@ -218,12 +261,10 @@ void errorinfo_errno(const char *fun, errno_t errorno)
 	char log[LOGSIZE];
 	size = snprintf(log, LOGSIZE, "error_errno:%s\r\n", perror);
 
-	if (size <= 0)
+	if (size <= 0 || writelog(2, log, size) != SUCCESS)
 	{
-		return;
+		//出现问题
 	}
-
-	writelog(2, log, size);
 }
 
 /*调用此函数后程序自动退出*/
@@ -235,16 +276,17 @@ void dumpinfo(const char *format, ...)
 	}
 
 	int size = 0;
-	char log[LOGSIZE + 100];
+	const int logsize = LOGSIZE + 20;
+	char log[logsize];
 
 	va_list arg_list;
 	va_start(arg_list, format);
-	size = combinelog("dump", log, arg_list, format);
+	size = combinelog("dump", log, logsize, arg_list, format);
 	va_end(arg_list);
 
-	if (size > 0)
+	if (size <= 0 || writelog(3, log, size) != SUCCESS)
 	{
-		writelog(3, log, size);
+		//出现问题
 	}
 
 	exit(1);

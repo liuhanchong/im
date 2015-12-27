@@ -1,7 +1,6 @@
 #ifndef IO_H
 #define IO_H
 
-#include <sys/stat.h>
 #include <fcntl.h>
 
 /*打开文件*/

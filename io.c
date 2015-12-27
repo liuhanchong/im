@@ -1,6 +1,10 @@
 #include "io.h"
 #include <unistd.h>
 #include <string.h>
+#include <sys/stat.h>
+
+#define KB 1024
+#define MB ((1024) * KB)
 
 /*打开文件*/
 int openfile(const char *path, int flag, mode_t mode)
@@ -29,44 +33,19 @@ int closefile(int fileno)
 /*读取一行*/
 int readline(int fileno, char *text, int size)
 {
-	int sumlen = 0;
-	const int tempsize = 50;
-	char temptext[tempsize];
-	while (sumlen <= size)
+	int readsize = readfile(fileno, text, size);
+	if (readsize <= 0)
 	{
-		//读取固定长度的文本
-		int len = read(fileno, temptext, tempsize);
-		if (len == -1)
-		{
-			return -1;
-		}
-		else if (len == 0)
-		{
-			break;
-		}
-
-		//判断当前读取的字符串是否有'\n'
-		int templen = sumlen;
-		char *find = strchr(temptext, '\n'); 
-		if (find)
-		{
-			*find = '\0';
-			sumlen += strlen(temptext);
-		}
-		else
-		{
-			sumlen += tempsize;
-		}
-
-		strncpy((text + sumlen), temptext, tempsize - templen);
+		return readsize;
 	}
 
-	if (sumlen <= 0)
+	char *find = strchr(text, '\n');
+	if (find)
 	{
-		return 0;
+		readsize = find - text;
+		*find = '\0';
 	}
-
-	return sumlen;
+	return readsize;
 }
 
 /*读数据*/
@@ -93,10 +72,8 @@ int filelen(int fileno)
 	struct stat stats;
 	if (fstat(fileno, &stats) == 0)
 	{
-		off_t size = stats.st_size;
-		return ((size / 1024) / 1024);
+		return stats.st_size / MB;
 	}
-
 	return -1;
 }
 
