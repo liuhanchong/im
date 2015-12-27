@@ -1,8 +1,8 @@
 run :
 	./im
 
-link : im.o io.o common.o log.o thread.o
-	gcc -o im im.o io.o common.o log.o thread.o
+link : im.o io.o common.o log.o thread.o queue.o
+	gcc -o im im.o io.o common.o log.o thread.o queue.o
 
 im : im.c log.o 
 	gcc -c im.c log.o
@@ -18,6 +18,9 @@ common : common.h
 
 thread : thread.h thread.c common.h
 	gcc -c thread.h thread.c common.h
+
+queue : queue.h queue.c common.h
+	gcc -c queue.h queue.c common.h
 
 clear :
 	rm -f *.o *.gch im 

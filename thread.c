@@ -1,6 +1,5 @@
 #include "thread.h"
 #include "common.h"
-#include <memory.h>
 #include <unistd.h>
 #include <stdlib.h>
 
