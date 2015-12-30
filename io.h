@@ -33,4 +33,7 @@ int filelen(int fileno);
 /*写入文件*/
 int writefile(int fileno, const char *text, int size);
 
+/*获取文件选项*/
+int getfcntl(int fileno);
+
 #endif

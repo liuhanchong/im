@@ -82,3 +82,9 @@ int writefile(int fileno, const char *text, int size)
 {
 	return write(fileno, text, size);
 }
+
+/*获取文件选项*/
+int getfcntl(int fileno)
+{
+	return fcntl(fileno, F_GETFL);
+}
