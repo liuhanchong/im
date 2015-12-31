@@ -44,7 +44,11 @@ int readline(int fileno, char *text, int size)
 	{
 		readsize = find - text;
 		*find = '\0';
+
+		//读取得数据多于一行 将其指针返回
+		lseek(fileno, SEEK_CUR, (-(size - readsize - 1)));
 	}
+
 	return readsize;
 }
 
