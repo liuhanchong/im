@@ -10,4 +10,12 @@
 
 #include "log.h"
 
+int getmaxfilenumber();
+
+int setmaxfilenumber(int filenumber);
+
+int setcorefilesize(int filesize);
+
+int getcorefilesize();
+
 #endif

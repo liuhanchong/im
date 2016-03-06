@@ -26,7 +26,7 @@ int iptonet(int domain, const char *ip, void *addr);
 const char *nettoip(int domain, const void *addr, char *desaddr, size_t len);
 
 /*设置addr*/
-int setsockaddrin(struct sockaddr_in *sockaddr, sa_family_t family, uint16_t port, char *ip);
+int setsockaddrin(struct sockaddr_in *sockaddr, sa_family_t family, uint16_t port, const char *ip);
 
 /*获取主机名和服务名得IP信息*/
 int getipaddrinfo(const char *host, const char *server,
@@ -43,7 +43,7 @@ int gethostinfo(const struct sockaddr *addr, socklen_t socklen, char *host,
 				 size_t hostlen, char *service, size_t serlen, int flag);
 
 /*绑定ip*/
-int bindsock(int fd, const struct sockaddr *addr, socklen_t addrlen);
+int bindsock(int fd, struct sockaddr *addr, socklen_t addrlen);
 
 /*监听链接*/
 int listensock(int fd, int backlog);
@@ -75,7 +75,7 @@ int getsocketopt(int fd, int level, int opt,
 				  void *optval, socklen_t *optlen);
 
 /*创建tcp服务*/
-int cretcpser(char *ip, int port);
+int cretcpser(const char *ip, const int port, const int backlog);
 
 /*创建udp服务*/
 int creudpser(char *ip, int port);

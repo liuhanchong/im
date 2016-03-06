@@ -1,8 +1,8 @@
 run :
 	./im
 
-link : im.o io.o common.o log.o thread.o queue.o socket.o
-	gcc -o im im.o io.o common.o log.o thread.o queue.o socket.o
+link : im.o io.o common.o log.o thread.o queue.o socket.o reactor.o
+	gcc -o im im.o io.o common.o log.o thread.o queue.o socket.o reactor.o
 
 im : im.c log.o 
 	gcc -c im.c log.o
@@ -25,8 +25,14 @@ queue : queue.h queue.c common.h
 socket : socket.h socket.c common.h
 	gcc -c socket.h socket.c common.h
 
+reactor : reactor.h reactor.c common.h socket.h
+	gcc -c reactor.h reactor.c common.h socket.h
+
+#timers : timers.h timers.c reactor.h common.h
+#	gcc -c timers.h timers.c reactor.h common.h
+
 clear :
-	rm -f *.o *.gch im 
+	rm -f *.o *.gch im ./logfile/*.log
 	clear
 
 clearlog :

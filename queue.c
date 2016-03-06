@@ -5,7 +5,7 @@
 
 static int deletenode(list *list, queuenode *node)
 {
-	if (node->next && node->pre)
+	if (node->next != NULL && node->pre != NULL)
 	{
 		node->next->pre = node->pre;
 		node->pre->next = node->next;
@@ -16,6 +16,7 @@ static int deletenode(list *list, queuenode *node)
 			list->head = node->next;
 		}
 
+		//当链表为空将链表头置为空
 		if ((--list->curqueuelen) == 0)
 		{
 			list->head = NULL;
@@ -30,13 +31,8 @@ static int deletenode(list *list, queuenode *node)
 	return FAILED;
 }
 
-int createqueue(list *list, list_t maxlen, int openprio)
+int createqueue(list *list, list_t maxlen, int openprio, quesort sortfun)
 {
-	if (!list || maxlen < 1)
-	{
-		return FAILED;
-	}
-
 	pthread_mutexattr_t mutexattr;
 	if (pthread_mutexattr_init(&mutexattr) == 0 &&
 		pthread_mutex_init(&list->thmutex, &mutexattr) == 0)
@@ -45,6 +41,7 @@ int createqueue(list *list, list_t maxlen, int openprio)
 		list->head = NULL;
 		list->maxqueuelen = maxlen;
 		list->openprio = openprio;
+		list->sortfun = sortfun;
 		return SUCCESS;
 	}
 
@@ -53,14 +50,9 @@ int createqueue(list *list, list_t maxlen, int openprio)
 
 int destroyqueue(list *list)
 {
-	if (!list)
+	if (clear(list) == FAILED)
 	{
 		return FAILED;
-	}
-
-	while (!empty(list))
-	{
-		deletenode(list, gethead(list));
 	}
 
 	if (pthread_mutex_destroy(&list->thmutex) != 0)
@@ -116,43 +108,71 @@ int push(list *list, void *data, int prio)
 		list->head = node;
 		node->next = node;
 		node->pre = node;
+
+		list->curqueuelen++;
+
+		return SUCCESS;
 	}
-	/*链表存在元素*/
-	else
+
+	//找到头指针
+	queuenode *head = list->head;
+
+	//优先级队列
+	if (list->openprio == 1 || list->openprio == 2)
 	{
-		//找到头指针
-		queuenode *head = list->head;
-		//优先级队列
-		if (list->openprio == 1)
+		while (head)
 		{
-			while (head->next != list->head)
+			//找到合适的节点
+			if ((list->openprio == 1 && node->prio < head->prio)
+				|| (list->openprio == 2 && list->sortfun != NULL && list->sortfun(head, node) == -1))
 			{
-				if (node->prio < head->prio)
+				node->next = head;
+				node->pre = head->pre;
+				head->pre->next = node;
+				head->pre = node;
+
+				//改变头结点
+				if (head == list->head)
 				{
-					break;
+					list->head = node;
 				}
 
-				head = head->next;
+				list->curqueuelen++;
+
+				return SUCCESS;
 			}
 
-			node->pre = head;
-			node->next = head->next;
-			head->next->pre = node;
-			head->next = node;
+			//遍历到最后一个元素
+			if (head->next == list->head)
+			{
+				break;
+			}
+
+			head = head->next;
 		}
-		//非优先级队列
-		else
-		{
-			node->pre = head->pre;
-			head->pre->next = node;
-			head->pre = node;
-			node->next = head;
-		}
+
+		//没找到合适的节点
+		node->pre = head;
+		node->next = head->next;
+		head->next->pre = node;
+		head->next = node;
+
+		list->curqueuelen++;
+
+		return SUCCESS;
+	}
+	//非优先级队列
+	else if (list->openprio == 0)
+	{
+		node->pre = head->pre;
+		head->pre->next = node;
+		head->pre = node;
+		node->next = head;
+
+		list->curqueuelen++;
 	}
 
-	list->curqueuelen++;
-
-	return 1;
+	return SUCCESS;
 }
 
 queuenode *gethead(list *list)
@@ -163,12 +183,31 @@ queuenode *gethead(list *list)
 int pop(list *list, queuenode *node)
 {
 	queuenode *head = list->head;
+	if (head == NULL)
+	{
+		return FAILED;
+	}
 	memcpy(node, head, sizeof(queuenode));
 	return deletenode(list, head);
 }
 
 int full(list *list)
 {
-	return ((list->curqueuelen < list->maxqueuelen) ? 0 : 1);
+	return (((list->curqueuelen < list->maxqueuelen) || list->maxqueuelen <= 0) ? 0 : 1);
+}
+
+int clear(list *list)
+{
+	while (!empty(list))
+	{
+		deletenode(list, gethead(list));
+	}
+
+	return SUCCESS;
+}
+
+int delete(list *list, queuenode *node)
+{
+	return deletenode(list, node);
 }
 

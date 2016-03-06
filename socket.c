@@ -5,6 +5,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <fcntl.h>
+#include <string.h>
 
 /*将本机字节序转换为网络*/
 uint32_t htonlv(uint32_t host)
@@ -48,7 +49,7 @@ const char *nettoip(int domain, const void *addr, char *desaddr, size_t len)
 	return inet_ntop(domain, addr, desaddr, len);
 }
 
-int setsockaddrin(struct sockaddr_in *sockaddr, sa_family_t family, uint16_t port, char *ip)
+int setsockaddrin(struct sockaddr_in *sockaddr, sa_family_t family, uint16_t port, const char *ip)
 {
 	sockaddr->sin_family = family;
 	sockaddr->sin_port = htons(port);
@@ -84,7 +85,7 @@ int gethostinfo(const struct sockaddr *addr, socklen_t socklen, char *host,
 }
 
 /*绑定ip*/
-int bindsock(int fd, const struct sockaddr *addr, socklen_t addrlen)
+int bindsock(int fd, struct sockaddr *addr, socklen_t addrlen)
 {
 	return bind(fd, addr, addrlen);
 }
@@ -139,9 +140,32 @@ int getsocketopt(int fd, int level, int opt,
 	return getsockopt(fd, level, opt, optval, optlen);
 }
 /*创建tcp服务*/
-int cretcpser(char *ip, int port)
+int cretcpser(const char *ip, const int port, const int backlog)
 {
-	return SUCCESS;
+	int domain = AF_INET;//AF_INET6 目前没有使用IPV6
+	int socktype = SOCK_STREAM;
+	int protocol = 0;
+	
+	int sockid = socket(domain, socktype, protocol);
+	if (sockid < 0)
+	{
+		return -1;
+	}
+	
+	struct sockaddr_in sockaddr;
+	memset(&sockaddr, 0, sizeof(struct sockaddr_in));
+	setsockaddrin(&sockaddr, domain, port, ip);
+	if (bindsock(sockid, (struct sockaddr *)&sockaddr, sizeof(struct sockaddr_in)) == FAILED)
+	{
+		return -1;
+	}
+	
+	if (listensock(sockid, backlog) == -1)
+	{
+		return -1;
+	}
+	
+	return sockid;
 }
 
 /*创建udp服务*/

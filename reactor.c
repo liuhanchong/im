@@ -1,412 +1,465 @@
 #include "reactor.h"
 #include "common.h"
+#include "socket.h"
+#include <stdlib.h>
+#include <sys/types.h>
+#include <sys/event.h>
+#include <sys/time.h>
+#include <string.h>
+#include <time.h>
+#include <math.h>
 
-int Create(int nDomain, int nType, int nProt, int nPort, const char *pIp)
+static int timespeccompare(struct timespec *src, struct timespec *dest)
 {
-	/*必须是TCP/IP协议的套接字创建*/
-	if (!pIp || nDomain != AF_INET || nType != SOCK_STREAM)
+	if (src->tv_sec < dest->tv_sec)
 	{
-		ErrorInfor("Create", ERROR_TRANTYPE);
+		return 1;
+	}
+	
+	if (src->tv_sec > dest->tv_sec)
+	{
+		return -1;
+	}
+	
+	if (src->tv_nsec < dest->tv_nsec)
+	{
+		return 1;
+	}
+	
+	if (src->tv_nsec > dest->tv_nsec)
+	{
 		return -1;
 	}
 
-	serverSocket.nAccOutTime = serverConfig.nAccSocketOutTime;
-	serverSocket.nAccOutTimeThreadLoopSpace = serverConfig.nAccOutTimeSocketLoopSpace;
-	serverSocket.nMaxAcceptSocketNumber = serverConfig.nMaxAcceptSocketNumber;
-	serverSocket.nAccThreadLoopSpace = serverConfig.nAccSocketThreadLoopSpace;
-
-	if (InitQueue(&serverSocket.socketList, serverSocket.nMaxAcceptSocketNumber, 0) == 0)
-	{
-		ErrorInfor("Create", ERROR_INITQUEUE);
-		return 0;
-	}
-
-	/*创建套接字*/
-	int nSocket = socket(nDomain, nType, nProt);
-	if (nSocket == -1)
-	{
-		SystemErrorInfor("Create-1", errno);
-		ReleaseQueue(&serverSocket.socketList);
-		return -1;
-	}
-
-	/*设置套接字选项*/
-	int nReuse = 1;
-	if (setsockopt(nSocket, SOL_SOCKET, SO_REUSEADDR, &nReuse, sizeof(nReuse)) == -1)
-	{
-		SystemErrorInfor("Create-2", errno);
-	}
-
-	/*绑定套接字*/
-	serverSocket.nServerSocket  = nSocket;
-	serverSocket.pAccThread     = NULL;
-	serverSocket.pOutTimeThread = NULL;
-
-	struct sockaddr_in sock_addr;
-	sock_addr.sin_family 	  = nDomain;
-	sock_addr.sin_port 		  = htons(nPort);
-	sock_addr.sin_addr.s_addr = inet_addr(pIp);
-	if (bind(nSocket, (struct sockaddr *)&sock_addr, sizeof(struct sockaddr_in)) == -1)
-	{
-		SystemErrorInfor("Create-3", errno);
-		ReleaseQueue(&serverSocket.socketList);
-		close(nSocket);
-		return -1;
-	}
-
-	return nSocket;
+	return 0;
 }
 
-int Listen(int nSocket, int nQueSize)
+static int timercompare(queuenode *src, queuenode *dest)
 {
-	if (nSocket < 0 || nQueSize <= 0)
-	{
-		ErrorInfor("Listen", ERROR_TRANTYPE);
-		return 0;
-	}
+	event *srcuevent = (struct event *)src->data;
+	event *destuevent = (struct event *)dest->data;
 
-	if (listen(nSocket, nQueSize) != 0)
-	{
-		SystemErrorInfor("Listen", errno);
-		return 0;
-	}
-
-	return 1;
+	return timespeccompare(&srcuevent->timer, &destuevent->timer);
 }
 
-int Accept(int nSocket)
+/*设置计时器事件*/
+event *settimer(reactor *reactor, void *(*callback)(void *), void *arg, struct timespec *timer)
 {
-	if (nSocket < 0)
+	struct event *uevent = malloc(sizeof(struct event));
+	if (uevent == NULL)
 	{
-		ErrorInfor("Accept", ERROR_TRANTYPE);
-		return 0;
-	}
-
-	serverSocket.pAccThread = CreateLoopThread(AcceptSocket, NULL, serverSocket.nAccThreadLoopSpace);
-	if (!serverSocket.pAccThread)
-	{
-		ErrorInfor("Accept-1", ERROR_CRETHREAD);
-		return 0;
-	}
-
-	serverSocket.pOutTimeThread = CreateLoopThread(FreeOutTimeSocket, NULL, serverSocket.nAccOutTimeThreadLoopSpace);
-	if (!serverSocket.pOutTimeThread)
-	{
-		ErrorInfor("Accept-2", ERROR_CRETHREAD);
-		return 0;
-	}
-
-	return 1;
-}
-
-int Close(int nSocket)
-{
-	if (nSocket < 0)
-	{
-		ErrorInfor("Close", ERROR_ARGNULL);
-		return 0;
-	}
-
-	if (serverSocket.pAccThread)
-	{
-		ReleaseThread(serverSocket.pAccThread);
-	}
-
-	if (serverSocket.pOutTimeThread)
-	{
-		ReleaseThread(serverSocket.pOutTimeThread);
-	}
-
-	BeginTraveData(&serverSocket.socketList);
-		ReleaseSocketNode((SocketNode *)pData);
-	EndTraveData();
-
-	ReleaseQueue(&serverSocket.socketList);
-
-	if (close(nSocket) != 0)
-	{
-		SystemErrorInfor("Close", errno);
-		return 0;
-	}
-
-	return 1;
-}
-
-void ReleaseSocketNode(SocketNode *pNode)
-{
-	if (pNode)
-	{
-		if (close(pNode->nClientSocket) != 0)
-		{
-			ErrorInfor("ReleaseSocketNode", ERROR_CLOSOCKET);
-		}
-
-		free(pNode);
-		pNode = NULL;
-	}
-}
-
-void *AcceptSocket(void *pData)
-{
-	//接收异步执行
-	int nClientSocket = 0;
-	int nSerSocket 	  = 0;
-	int nLen 		  = 0;
-	struct sockaddr_in sock_addr;
-	nSerSocket = serverSocket.nServerSocket;
-	nLen = sizeof(struct sockaddr_in);
-	nClientSocket = accept(nSerSocket, (struct sockaddr *)&sock_addr, (socklen_t *)&nLen);
-
-	/*异步读取数据*/
-	if (nClientSocket < 0)
-	{
-		SystemErrorInfor("AcceptSocket-1", errno);
 		return NULL;
 	}
 
-	//将客户端socket设置为non_blocked
-	if (fcntl(nClientSocket, F_SETFL, O_NONBLOCK) == -1)
-	{
-		SystemErrorInfor("AcceptSocket-2", errno);
-	}
+	uevent->fd = -1;
+	uevent->reactor = reactor;
+	uevent->callback = callback;
+	uevent->arg = arg;
+	memcpy(&uevent->timer, timer, sizeof(struct timespec));
+	uevent->eventflag = 0;
+	uevent->next = NULL;
 
-	SocketNode *pSocketNode = (SocketNode *)malloc(sizeof(SocketNode));
-	if (!pSocketNode)
-	{
-		SystemErrorInfor("AcceptSocket-3", errno);
-		return NULL;
-	}
-
-	pSocketNode->sock_addr 	   = sock_addr;
-	pSocketNode->nClientSocket = nClientSocket;
-	pSocketNode->tmAccDateTime = time(NULL);
-
-	//为socket增加监听事件
-	if (AddSocketEvent(nClientSocket, pSocketNode) == 0)
-	{
-		ErrorInfor("AcceptSocket", ERROR_ADDEVENT);
-		return NULL;
-	}
-
-	/*插入队列*/
-	LockQueue(&serverSocket.socketList);
-	if (!Insert(&serverSocket.socketList, (void *)pSocketNode, 0))
-	{
-		ReleaseSocketNode(pSocketNode);
-		ErrorInfor("AcceptSocket", ERROR_INSOCKET);
-	}
-	UnlockQueue(&serverSocket.socketList);
-
-	return NULL;
+	return uevent;
 }
 
-void *FreeOutTimeSocket(void *pData)
+/*添加计时器事件*/
+int addtimer(event *uevent, int eventflag)
 {
-	/*遍历队列列表*/
-	LockQueue(&serverSocket.socketList);
+	uevent->eventflag = EV_TIMEOUT;
+	if (eventflag & EV_PERSIST)
+	{
+		uevent->eventflag |= EV_PERSIST;
+	}
 
-	BeginTraveData(&serverSocket.socketList);
-		time_t tmCurTime = time(NULL);
-		SocketNode *pSocketNode = (SocketNode *)pData;
-		if (((tmCurTime - pSocketNode->tmAccDateTime) >= serverSocket.nAccOutTime))
+	//设置计时器时间
+	time_t curtime = time(NULL);
+	uevent->timer.tv_sec += curtime;
+
+	//加入到用户事件列表
+	return push(&uevent->reactor->utimersevelist, uevent, 0);
+}
+
+/*删除计时器事件*/
+int deltimer(event *uevent)
+{
+	queuenode *headquenode = gethead(&uevent->reactor->utimersevelist);
+	while (headquenode)
+	{
+		struct event *headuevent = (struct event *)headquenode->data;
+
+		// if (uevent->callback == headuevent->callback 
+		// 	&& (timespeccompare(&uevent->timer, &headuevent->timer) == 0))
+		if (headuevent == uevent)
 		{
-			ReleaseSocketNode(pSocketNode);
-			DeleteForNode(&serverSocket.socketList, pQueueNode);
+			delete(&uevent->reactor->utimersevelist, headquenode);
+			return SUCCESS;
 		}
-	EndTraveData();
 
-	UnlockQueue(&serverSocket.socketList);
-
-	return NULL;
-}
-
-int CreateAio(AioX *pAio, int nMaxAioQueueLength, int nLoopSpace, int nMaxBufferLength)
-{
-	if (!pAio || nMaxAioQueueLength < 1 || nMaxAioQueueLength < 1)
-	{
-		ErrorInfor("CreateAio", ERROR_ARGNULL);
-		return 0;
-	}
-
-	pAio->nAioId = kqueue();
-	if (pAio->nAioId == -1)
-	{
-		SystemErrorInfor("CreateAio", errno);
-		return 0;
-	}
-
-	pAio->nMaxBufferLength   = nMaxBufferLength;
-	pAio->nMaxAioQueueLength = nMaxAioQueueLength;
-	pAio->pEvnetQueue 	     = malloc(nMaxAioQueueLength * sizeof(struct kevent));
-	if (!pAio->pEvnetQueue)
-	{
-		SystemErrorInfor("CreateAio", errno);
-		close(pAio->nAioId);
-		return 0;
-	}
-
-	pAio->pProAioThread = CreateLoopThread(ProcessAio, pAio, nLoopSpace);
-	if (!pAio->pProAioThread)
-	{
-		free(pAio->pEvnetQueue);
-		close(pAio->nAioId);
-		ErrorInfor("CreateAio", ERROR_CRETHREAD);
-		return 0;
-	}
-
-	return 1;
-}
-
-int ControlAio(int nQueueId, struct kevent *event)
-{
-	if (kevent(nQueueId, event, 1, NULL, 0, NULL) == -1)
-	{
-		SystemErrorInfor("ControlAio", errno);
-		return 0;
-	}
-	return 1;
-}
-
-int RemoveEvent(int nQueueId, int nFd, int nFilter)
-{
-	struct kevent event = GetEvent(nFd, nFilter, EV_DELETE, NULL);
-	return ControlAio(nQueueId, &event);
-}
-
-int AdditionEvent(int nQueueId, int nFd, int nFilter, void *pData)
-{
-	struct kevent event = GetEvent(nFd, nFilter, EV_ADD, pData);
-	return ControlAio(nQueueId, &event);
-}
-
-int ModifyEvent(int nQueueId, int nFd, int nFilter, void *pData)
-{
-	return AdditionEvent(nQueueId, nFd, nFilter, pData);
-}
-
-struct kevent GetEvent(int fd, int nFilter, int nFlags, void *pData)
-{
-	struct kevent event;
-	EV_SET(&event, fd, nFilter, nFlags, 0, 0, pData);
-	return event;
-}
-
-int ReleaseAio(AioX *pAio)
-{
-	if (!pAio)
-	{
-		ErrorInfor("ReleaseAio", ERROR_ARGNULL);
-		return 0;
-	}
-
-	if (pAio->pProAioThread)
-	{
-		ReleaseThread(pAio->pProAioThread);
-	}
-
-	if (pAio->pEvnetQueue)
-	{
-		free(pAio->pEvnetQueue);
-		pAio->pEvnetQueue = NULL;
-	}
-
-	if (close(pAio->nAioId) != 0)
-	{
-		SystemErrorInfor("ReleaseAio", errno);
-		return 0;
-	}
-	return 1;
-}
-
-void *ProcessAio(void *pData)
-{
-	AioX *pAioX = (AioX *)pData;
-	if (!pAioX || !pAioX->pEvnetQueue || pAioX->nMaxAioQueueLength < 1)
-	{
-		ErrorInfor("ProcessAio", ERROR_ARGNULL);
-		return NULL;
-	}
-
-	/*五秒超时*/
-	struct timespec time = {.tv_sec = 5, .tv_nsec = 0};
-	int nQueLen = kevent(pAioX->nAioId, NULL, 0, pAioX->pEvnetQueue, pAioX->nMaxAioQueueLength, &time);
-	if (nQueLen == -1)
-	{
-		SystemErrorInfor("ProcessAio", errno);
-	}
-
-	struct kevent event;
-	for (int i = 0; i < nQueLen; i++)
-	{
-		event = pAioX->pEvnetQueue[i];
-
-		//读取数据
-		if (event.flags & EVFILT_READ)
+		if ((headquenode = headquenode->next) == gethead(&uevent->reactor->utimersevelist))
 		{
-			Read(pAioX->nAioId, pAioX->nMaxBufferLength, &event);
+			break;
 		}
-		//写数据
-		else if (event.flags & EVFILT_WRITE)
-		{
-			Write(&event);
-		}
-		//错误数据
-		else if (event.flags & EV_ERROR)
-		{
-			ErrorInfor("ProcessAio", (char *)event.data);
+	}
 
-			if (RemoveEvent(pAioX->nAioId, event.ident, EV_ERROR) == 0)
-			{
-				ErrorInfor("ProcessAio", ERROR_REMEVENT);
-			}
+	return FAILED;
+}
+
+/*获取最小超时时间*/
+int getminouttimers(reactor *reactor, struct timespec *mintimer)
+{
+	//计算最小超时时间
+	queuenode *headquenode = gethead(&reactor->utimersevelist);
+	if (headquenode == NULL)
+	{
+		return FAILED;
+	}
+
+	struct timespec headtimer = ((struct event *)headquenode->data)->timer;
+	time_t curtime = time(NULL);
+
+	if (headtimer.tv_nsec > 0)
+	{
+		mintimer->tv_nsec = (long)(pow(10, 9) - headtimer.tv_nsec);
+		mintimer->tv_sec = headtimer.tv_sec - curtime - 1;
+	}
+	else
+	{
+		mintimer->tv_sec = headtimer.tv_sec - curtime;
+	}
+
+	if (mintimer->tv_sec < 0)
+	{
+		mintimer->tv_sec = 0;	
+		mintimer->tv_nsec = 0;
+	}
+
+	return SUCCESS;
+}
+
+/*遍历计时器事件*/
+int looptimers(reactor *reactor)
+{
+	struct timespec curtime = {time(NULL), 0};
+
+	queuenode *headquenode = gethead(&reactor->utimersevelist);
+	while (headquenode)
+	{
+		struct event *headuevent = (struct event *)headquenode->data;
+		if (timespeccompare(&curtime, &headuevent->timer) == -1)
+		{
+			push(&reactor->uactevelist, headuevent, 0);
 		}
 		else
 		{
+			break;
 		}
+
+		if ((headquenode = headquenode->next) == gethead(&reactor->utimersevelist))
+		{
+			break;
+		}
+	}
+
+	return SUCCESS;
+}
+
+/*获取指定的socket事件在hash表位置*/
+static struct event *gethashevent(int fd, reactor *reactor)
+{
+	int hashindex = fd % reactor->uevelistlen;
+	return &(reactor->uevelist[hashindex]);
+}
+
+/*创建反应堆*/
+reactor *createreactor()
+{
+	reactor *newreactor = (struct reactor *)malloc(sizeof(reactor));
+	if (newreactor == NULL)
+	{
+		return NULL;
+	}
+
+	newreactor->reactorid = kqueue();
+	if (newreactor->reactorid == -1)
+	{
+		return NULL;
+	}
+
+	/*使用进程最大打开文件数目*/
+	int evenumber = getmaxfilenumber();
+	if (evenumber <= 0)
+	{
+		evenumber = 256;
+	}
+
+	/*初始化hash表 链地址法处理冲突*/
+	newreactor->uevelistlen = evenumber;
+	int uevelistsize = sizeof(struct event) * evenumber;
+	newreactor->uevelist = (struct event *)malloc(uevelistsize);
+	if (newreactor->uevelist == NULL)
+	{
+		return NULL;
+	}
+	memset(newreactor->uevelist, 0, uevelistsize);
+
+	newreactor->kevelistlen = evenumber;
+	newreactor->kevelist = (struct kevent *)malloc(sizeof(struct kevent) * evenumber);
+	if (newreactor->kevelist == NULL)
+	{
+		return NULL;
+	}
+
+	if (createqueue(&newreactor->uactevelist, 0, 0, NULL) == FAILED)
+	{
+		return NULL;
+	}
+
+	if (createqueue(&newreactor->utimersevelist, 0, 2, timercompare) == FAILED)
+	{
+		return NULL;
+	}
+
+	/*开启监听事件*/
+	newreactor->listen = 1;
+	
+	return newreactor;
+}
+
+/*设置事件*/
+event *setevent(reactor *reactor, int fd, void *(*callback)(void *), void *arg)
+{
+	struct event *uevent = malloc(sizeof(struct event));
+	if (uevent == NULL)
+	{
+		return NULL;
+	}
+
+	uevent->fd = fd;
+	uevent->callback = callback;
+	uevent->arg = arg;
+	uevent->reactor = reactor;
+	uevent->readbufsize = 0;
+	uevent->writebufsize = 0;
+	uevent->next = NULL;
+	uevent->eventflag = 0;
+
+	return uevent;
+}
+
+/*添加事件*/
+int addevent(event *uevent, int eventflag)
+{
+	uevent->eventflag = eventflag;
+
+	//获取监听的事件
+	if (eventflag & EV_READ)
+	{
+		eventflag = EVFILT_READ;
+	}
+	else if (eventflag & EV_WRITE)
+	{
+		eventflag = EVFILT_WRITE;
+	}
+	else if (eventflag & EV_SIGNAL)
+	{
+		eventflag = EVFILT_SIGNAL;
+	}
+
+	//设置添加操作
+	int eventoper = (eventflag & EV_PERSIST) ? EV_ADD : EV_ADD | EV_ONESHOT; 
+	
+	//加入到系统内核监听
+	struct kevent addevent;
+	EV_SET(&addevent, uevent->fd, eventflag, eventoper, 0, 0, 0);
+	if (kevent(uevent->reactor->reactorid, &addevent, 1, NULL, 0, NULL) == -1)
+	{
+		return FAILED;
+	}
+
+	//加入到用户事件列表
+	struct event *hashuevent = gethashevent(uevent->fd, uevent->reactor);
+	while (hashuevent->next)
+	{
+		hashuevent = hashuevent->next;
+	}
+	hashuevent->next = uevent;
+	
+	return SUCCESS;
+}
+
+/*删除事件*/
+int delevent(event *uevent)
+{
+	struct event *prehashuevent = gethashevent(uevent->fd, uevent->reactor);
+	struct event *hashuevent = prehashuevent->next;
+	while (hashuevent)
+	{
+		if (hashuevent == uevent)
+		{
+			prehashuevent->next = hashuevent->next;
+
+			//关闭的同时会自动将kqueue中的事件去掉
+			if (closesock(uevent->fd) == -1)
+			{
+				return FAILED;
+			}
+
+			//释放用户注册事件
+			free(hashuevent);
+
+			return SUCCESS;
+		}
+
+		prehashuevent = hashuevent;
+		hashuevent = hashuevent->next;
+	}
+
+	return FAILED;
+}
+
+/*获取事件*/
+event *getevent(int fd, reactor *reactor)
+{
+	struct event *hashuevent = gethashevent(fd, reactor);
+	while (hashuevent)
+	{
+		if (hashuevent->fd == fd)
+		{
+			return hashuevent;
+		}
+
+		hashuevent = hashuevent->next;
 	}
 
 	return NULL;
 }
 
-int Read(int nAioId, int nMaxBufferLength, struct kevent *event)
+static int getactevent(reactor *reactor)
 {
-	char *pData = (char *)malloc(nMaxBufferLength);
-	if (!pData)
+	//设置默认超时时间
+	struct timespec defaulttime = {1, 0};
+	struct timespec mintimer = defaulttime;
+	if (getminouttimers(reactor, &mintimer) == SUCCESS 
+		&& timespeccompare(&defaulttime, &mintimer) == 1)
 	{
-		SystemErrorInfor("Read", errno);
-		return 0;
+		memcpy(&mintimer, &defaulttime, sizeof(struct timespec));
 	}
 
-	/*接收信息*/
-	int nDataSize = recv(event->ident, pData, nMaxBufferLength, 0);
+	//清空激活链表
+	clear(&reactor->uactevelist);
 
-	//读取信息错误 或对方关闭了套接字
-	if (nDataSize == -1 || nDataSize == 0)
+	//获取活动事件
+	int actevenum = kevent(reactor->reactorid, NULL, 0, reactor->kevelist, reactor->kevelistlen, &mintimer);
+	if (actevenum == -1)
 	{
-		SystemErrorInfor("Read-1", errno);
+		return FAILED;
+	}
 
-		if (RemoveEvent(nAioId, event->ident, EVFILT_READ) == 0)
+	//获取定时器超时事件
+	looptimers(reactor);
+
+	//获取活动的用户事件
+	for (int i = 0; i < actevenum; i++)
+	{
+		struct event *hashuevent = getevent(reactor->kevelist[i].ident, reactor);
+		if (hashuevent == NULL)
 		{
-			ErrorInfor("Read", ERROR_REMEVENT);
+			continue;
 		}
 
-		free(pData);
-		pData = NULL;
-		return 0;
+		push(&reactor->uactevelist, hashuevent, 0);
+		hashuevent->callback(hashuevent->arg);
 	}
 
-	//插入数据
-	if (!RecvData(event->udata, pData, nDataSize))
-	{
-		free(pData);
-		pData = NULL;
-		ErrorInfor("Read", ERROR_RECVDATA);
-		return 0;
-	}
-	return 1;
+	return SUCCESS;
 }
 
-int Write(struct kevent *event)
+/*分发消息*/
+int dispatchevent(reactor *reactor)
 {
-	return 1;
+	int count = 5;
+	while (reactor->listen && (count--))
+	{
+		if (getactevent(reactor) == FAILED)
+		{
+			return FAILED;
+		}
+	}
+
+	return SUCCESS;
 }
+
+/*销毁反应堆*/
+int destroyreactor(reactor *reactor)
+{
+	//释放sock事件
+	for (int i = 0; i < reactor->uevelistlen; i++)
+	{
+		struct event *unextevent = NULL;
+		struct event *uevent = reactor->uevelist[i].next;
+		while (uevent)
+		{
+			unextevent = uevent->next;
+			delevent(uevent);
+			uevent = unextevent;
+		}
+	}
+	free(reactor->uevelist);
+
+	//释放计时器事件
+	queuenode *headquenode = gethead(&reactor->utimersevelist);
+	while (!empty(&reactor->utimersevelist))
+	{
+		headquenode = gethead(&reactor->utimersevelist);
+		deltimer(headquenode->data);
+	}
+
+	free(reactor->kevelist);
+
+	destroyqueue(&reactor->uactevelist);
+	destroyqueue(&reactor->utimersevelist);
+
+	free(reactor);
+
+	return SUCCESS;
+}
+
+// void temp()
+// {
+// 	//读取数据
+// 	if (event.flags & EVFILT_READ)
+// 	{
+// 		/*接收信息*/
+// 		int recvlen = recv(event.ident, uevent.readbuf, READBUF, 0);
+// 		if (recvlen == -1 || recvlen == 0)
+// 		{
+// 			delevent(&uevent);
+// 			continue;
+// 		}
+
+// 		uevent.readbufsize = recvlen;
+// 	}
+// 	//写数据
+// 	else if (event.flags & EVFILT_WRITE)
+// 	{
+// 		continue;
+// 	}
+// 	//错误数据
+// 	else if (event.flags & EV_ERROR)
+// 	{
+// 		delevent(&uevent);
+// 		continue;
+// 	}
+// 	else
+// 	{
+// 		continue;
+// 	}
+// }
+
+// for (int i = 0; i < uevent->reactor->uevelistlen; i++)
+// 	{	
+// 		if (uevent->reactor->uevelist[i].next == NULL)
+// 		{
+// 			debuginfo("addevent--%d%s", i, "ok");
+// 		}
+// 	}
