@@ -3,6 +3,7 @@
 
 #include "queue.h"
 #include <time.h>
+#include <signal.h>
 
 /*网络字节缓冲区*/
 #define READBUF  1024
@@ -24,14 +25,19 @@ typedef struct reactor
 	pthread_mutex_t uevelistmutex;/*用户事件列表互斥锁*/
 	list uactevelist;/*用户注册的活动事件列表*/
 	list utimersevelist;/*用户注册的计时器列表*/
+	int sigid;/*注册信号类型*/
+	int sigstate;/*注册事件状态 0-未触发 1-触发*/
+	list usignalevelist;/*用户注册的信号事件列表*/
 	struct kevent *kevelist;/*系统内核事件列表*/
 	int kevelistlen;/*系统注册时间列表*/
 	int listen;//是否监听事件
+	int sockpair[2];//sockpair对，用于信号触发
 } reactor;
 
 typedef struct event
 {
 	int fd;/*对于定时器事件-1*/
+	int sigid;/*注册信号类型*/
 	int eventflag;/*读写、计时器-1、信号-2等事件*/
 	void *(*callback)(void *);
 	void *arg;
@@ -42,8 +48,18 @@ typedef struct event
 	int writebufsize;
 	struct timespec timer;/*定时器时间*/
 	struct timespec tmtimer;/*保存定时间执行间隔*/
+	struct sigaction oldsig;/*保存老的信号处理*/
 	struct event *next; 
 } event;
+
+/*设置信号事件*/
+event *setsignal(reactor *reactor, void *(*callback)(void *), void *arg);
+
+/*添加信号事件*/
+int addsignal(event *uevent, int sigid, int eventflag);
+
+/*删除信号事件*/
+int delsignal(event *uevent);
 
 /*设置计时器事件*/
 event *settimer(reactor *reactor, void *(*callback)(void *), void *arg, struct timespec *timer);
