@@ -26,6 +26,19 @@ typedef struct list
 	quesort sortfun;/*开启排序队列后，传递的排序函数 0-相等 1-src<dest -1-src>desc*/
 } list;
 
+/*遍历所有的节点*/
+#define looplist(list, headquenode) \
+	(headquenode) = gethead(list); \
+	while (headquenode) \
+	{ 
+
+#define endlooplist(list, headquenode) \
+		if ((headquenode = (headquenode)->next) == (list)->head) \
+		{ \
+			break; \
+		} \
+	} 
+
 int createqueue(list *list, list_t maxlen, int openprio, quesort sortfun);
 int destroyqueue(list *list);
 list_t getcurqueuelen(list *list);

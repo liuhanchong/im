@@ -8,6 +8,10 @@
 /*打印debug信息*/
 #define PRINTDEBUG
 
+#define lock(thmutex) (pthread_mutex_lock(&thmutex))
+
+#define unlock(thmutex) (pthread_mutex_unlock(&thmutex))
+
 #include "log.h"
 
 int getmaxfilenumber();

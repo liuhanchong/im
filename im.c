@@ -30,16 +30,14 @@ int quesort_t(queuenode *src, queuenode *dest)
 
 void *callback_t(void *arg)
 {
-	printf("callback_t-----%d\n", *((int *)arg));
+	debuginfo("callback_t-----%d", *((int *)arg));
 
 	return NULL;
 }
 
 int main()
 {
-	//1.计时器的EV_PERSIST处理
 	//2.共享队列互斥处理
-	//3.将计时器操作和队列操作分离开来
 	openlog();
 
 	reactor *reactor = NULL;
@@ -58,16 +56,17 @@ int main()
 			printf("%s\n", "addevent ok");
 		}
 
-		struct timespec timer = {2, 500000};
+		struct timespec timer = {2, 0};
 		uevent = settimer(reactor, callback_t, &i, &timer);
-		if (addtimer(uevent, EV_PERSIST) == SUCCESS)
+		if (addtimer(uevent, 0) == SUCCESS)
 		{
 			printf("%s\n", "addtimer ok");
 		}
 
-		struct timespec timer2 = {3, 800000};
-		uevent = settimer(reactor, callback_t, &i, &timer2);
-		if (addtimer(uevent, EV_PERSIST) == SUCCESS)
+		int j = 101;
+		struct timespec timer2 = {3, 0};
+		uevent = settimer(reactor, callback_t, &j, &timer2);
+		if (addtimer(uevent, 0) == SUCCESS)
 		{
 			printf("%s\n", "addtimer ok");
 		}

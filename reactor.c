@@ -8,6 +8,7 @@
 #include <string.h>
 #include <time.h>
 #include <math.h>
+#include <unistd.h>
 
 static int timespeccompare(struct timespec *src, struct timespec *dest)
 {
@@ -56,6 +57,7 @@ event *settimer(reactor *reactor, void *(*callback)(void *), void *arg, struct t
 	uevent->callback = callback;
 	uevent->arg = arg;
 	memcpy(&uevent->timer, timer, sizeof(struct timespec));
+	memcpy(&uevent->tmtimer, timer, sizeof(struct timespec));
 	uevent->eventflag = 0;
 	uevent->next = NULL;
 
@@ -76,17 +78,16 @@ int addtimer(event *uevent, int eventflag)
 	uevent->timer.tv_sec += curtime;
 
 	//加入到用户事件列表
-	return push(&uevent->reactor->utimersevelist, uevent, 0);
+	int ret = push(&uevent->reactor->utimersevelist, uevent, 0);
+	return ret;
 }
 
 /*删除计时器事件*/
 int deltimer(event *uevent)
 {
-	queuenode *headquenode = gethead(&uevent->reactor->utimersevelist);
-	while (headquenode)
-	{
+	queuenode *headquenode = NULL;
+	looplist(&uevent->reactor->utimersevelist, headquenode)
 		struct event *headuevent = (struct event *)headquenode->data;
-
 		// if (uevent->callback == headuevent->callback 
 		// 	&& (timespeccompare(&uevent->timer, &headuevent->timer) == 0))
 		if (headuevent == uevent)
@@ -94,18 +95,13 @@ int deltimer(event *uevent)
 			delete(&uevent->reactor->utimersevelist, headquenode);
 			return SUCCESS;
 		}
-
-		if ((headquenode = headquenode->next) == gethead(&uevent->reactor->utimersevelist))
-		{
-			break;
-		}
-	}
+	endlooplist(&uevent->reactor->utimersevelist, headquenode)
 
 	return FAILED;
 }
 
 /*获取最小超时时间*/
-int getminouttimers(reactor *reactor, struct timespec *mintimer)
+static int getminouttimers(reactor *reactor, struct timespec *mintimer)
 {
 	//计算最小超时时间
 	queuenode *headquenode = gethead(&reactor->utimersevelist);
@@ -137,13 +133,12 @@ int getminouttimers(reactor *reactor, struct timespec *mintimer)
 }
 
 /*遍历计时器事件*/
-int looptimers(reactor *reactor)
+static int looptimers(reactor *reactor)
 {
 	struct timespec curtime = {time(NULL), 0};
 
-	queuenode *headquenode = gethead(&reactor->utimersevelist);
-	while (headquenode)
-	{
+	queuenode *headquenode = NULL;
+	looplist(&reactor->utimersevelist, headquenode)
 		struct event *headuevent = (struct event *)headquenode->data;
 		if (timespeccompare(&curtime, &headuevent->timer) == -1)
 		{
@@ -153,12 +148,7 @@ int looptimers(reactor *reactor)
 		{
 			break;
 		}
-
-		if ((headquenode = headquenode->next) == gethead(&reactor->utimersevelist))
-		{
-			break;
-		}
-	}
+	endlooplist(&reactor->utimersevelist, headquenode)
 
 	return SUCCESS;
 }
@@ -201,6 +191,13 @@ reactor *createreactor()
 		return NULL;
 	}
 	memset(newreactor->uevelist, 0, uevelistsize);
+
+	pthread_mutexattr_t mutexattr;
+	if (pthread_mutexattr_init(&mutexattr) != 0 ||
+		pthread_mutex_init(&newreactor->uevelistmutex, &mutexattr) != 0)
+	{
+		return NULL;
+	}
 
 	newreactor->kevelistlen = evenumber;
 	newreactor->kevelist = (struct kevent *)malloc(sizeof(struct kevent) * evenumber);
@@ -318,7 +315,7 @@ int delevent(event *uevent)
 }
 
 /*获取事件*/
-event *getevent(int fd, reactor *reactor)
+static event *getevent(int fd, reactor *reactor)
 {
 	struct event *hashuevent = gethashevent(fd, reactor);
 	while (hashuevent)
@@ -374,16 +371,59 @@ static int getactevent(reactor *reactor)
 	return SUCCESS;
 }
 
+/*处理事件*/
+static int disposeevent(reactor *reactor)
+{
+	queuenode *headquenode = NULL;
+	looplist(&reactor->uactevelist, headquenode)
+		event *uevent = (event *)headquenode->data;
+		//定时器事件
+		if (uevent->eventflag & EV_TIMEOUT)
+		{
+			uevent->callback(uevent->arg);
+			if (uevent->eventflag & EV_PERSIST)
+			{
+				uevent->timer.tv_sec = time(NULL) + uevent->tmtimer.tv_sec;
+			}
+			else
+			{
+				deltimer(uevent);
+			}
+		}
+		//信号
+		else if (uevent->eventflag & EV_SIGNAL)
+		{
+		}
+		else if (uevent->eventflag & EV_READ || uevent->eventflag & EV_WRITE)
+		{
+			uevent->callback(uevent->arg);
+			if (!(uevent->eventflag & EV_PERSIST))
+			{
+				delevent(uevent);
+			}
+		}
+	endlooplist(&reactor->uactevelist, headquenode)
+
+	return SUCCESS;
+}
+
 /*分发消息*/
 int dispatchevent(reactor *reactor)
 {
-	int count = 5;
+	int count = 10;
 	while (reactor->listen && (count--))
 	{
 		if (getactevent(reactor) == FAILED)
 		{
 			return FAILED;
 		}
+
+		if (disposeevent(reactor) == FAILED)
+		{
+			return FAILED;
+		}
+
+		sleep(1);
 	}
 
 	return SUCCESS;
@@ -406,8 +446,10 @@ int destroyreactor(reactor *reactor)
 	}
 	free(reactor->uevelist);
 
+	pthread_mutex_destroy(&reactor->uevelistmutex);
+
 	//释放计时器事件
-	queuenode *headquenode = gethead(&reactor->utimersevelist);
+	queuenode *headquenode = NULL;
 	while (!empty(&reactor->utimersevelist))
 	{
 		headquenode = gethead(&reactor->utimersevelist);

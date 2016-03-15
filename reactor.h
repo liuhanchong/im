@@ -21,6 +21,7 @@ typedef struct reactor
 	int reactorid;
 	struct event *uevelist;/*用户注册事件列表*/
 	int uevelistlen;/*保存用户注册散列表长度*/
+	pthread_mutex_t uevelistmutex;/*用户事件列表互斥锁*/
 	list uactevelist;/*用户注册的活动事件列表*/
 	list utimersevelist;/*用户注册的计时器列表*/
 	struct kevent *kevelist;/*系统内核事件列表*/
@@ -40,6 +41,7 @@ typedef struct event
 	unsigned char writebuf[WRITEBUF];
 	int writebufsize;
 	struct timespec timer;/*定时器时间*/
+	struct timespec tmtimer;/*保存定时间执行间隔*/
 	struct event *next; 
 } event;
 
@@ -52,12 +54,6 @@ int addtimer(event *uevent, int eventflag);
 /*删除计时器事件*/
 int deltimer(event *uevent);
 
-/*获取最小超时时间*/
-int getminouttimers(reactor *reactor, struct timespec *mintimer);
-
-/*遍历计时器事件*/
-int looptimers(reactor *reactor);
-
 /*创建反应堆*/
 reactor *createreactor();
 
@@ -69,9 +65,6 @@ int addevent(event *uevent, int eventflag);
 
 /*删除事件*/
 int delevent(event *uevent);
-
-/*获取事件*/
-event *getevent(int fd, reactor *reactor);
 
 /*分发消息*/
 int dispatchevent(reactor *reactor);
