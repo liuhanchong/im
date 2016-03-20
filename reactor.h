@@ -7,10 +7,10 @@
 
 /*网络字节缓冲区*/
 #define READBUF  1024
-#define WRITEBUF 1024
+// #define WRITEBUF 1024
 
 /*反应堆支持的事件类型*/
-#define EV_TIMEOUT 0x01 //定时器事件
+#define EV_TIMER 0x01 //定时器事件
 #define EV_READ 0x02    //读取事件
 #define EV_WRITE 0x04   //写入事件
 #define EV_SIGNAL 0x08  //信号事件
@@ -36,48 +36,38 @@ typedef struct reactor
 
 typedef struct event
 {
-	int fd;/*对于定时器事件-1*/
-	int sigid;/*注册信号类型*/
-	int eventflag;/*读写、计时器-1、信号-2等事件*/
-	void *(*callback)(void *);
+	int fd;/*计时器:-1 信号:信号值 IO:文件描述符*/
+	int eventtype;/*读写、计时器、信号*/
+	void *(*callback)(void *, void *);
 	void *arg;
 	reactor *reactor;/*所属反应器*/
 	unsigned char readbuf[READBUF];
 	int readbufsize;
-	unsigned char writebuf[WRITEBUF];
-	int writebufsize;
-	struct timespec timer;/*定时器时间*/
-	struct timespec tmtimer;/*保存定时间执行间隔*/
-	struct sigaction oldsig;/*保存老的信号处理*/
+	// unsigned char writebuf[WRITEBUF];
+	// int writebufsize;
+	struct timespec endtimer;/*保存定时器结束时间*/
+	struct timespec intetimer;/*保存定时间隔*/
+	struct sigaction oldsig;/*保存设置前信号处理*/
 	struct event *next; 
 } event;
 
-/*设置信号事件*/
-event *setsignal(reactor *reactor, void *(*callback)(void *), void *arg);
-
-/*添加信号事件*/
-int addsignal(event *uevent, int sigid, int eventflag);
-
-/*删除信号事件*/
-int delsignal(event *uevent);
-
-/*设置计时器事件*/
-event *settimer(reactor *reactor, void *(*callback)(void *), void *arg, struct timespec *timer);
-
-/*添加计时器事件*/
-int addtimer(event *uevent, int eventflag);
-
-/*删除计时器事件*/
-int deltimer(event *uevent);
+/*释放分配的事件*/
+int freeevent(struct event *uevent);
 
 /*创建反应堆*/
-reactor *createreactor();
+struct reactor *createreactor();
 
 /*设置事件*/
-event *setevent(reactor *reactor, int fd, void *(*callback)(void *), void *arg);
+struct event *setevent(struct reactor *reactor, int fd, int evetype, void *(*callback)(void *, void *), void *arg);
+
+/*添加信号事件*/
+int addsignal(struct event *uevent);
+
+/*添加计时器事件*/
+int addtimer(event *uevent, struct timespec *timer);
 
 /*添加事件*/
-int addevent(event *uevent, int eventflag);
+int addevent(event *uevent);
 
 /*删除事件*/
 int delevent(event *uevent);

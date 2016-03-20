@@ -1,5 +1,12 @@
+kcmd :
+	kill -l
+
+stop :
+	kill -2 im 
+
 run :
-	./im
+	./im &
+	cd .
 
 link : im.o io.o common.o log.o thread.o queue.o socket.o reactor.o
 	gcc -o im im.o io.o common.o log.o thread.o queue.o socket.o reactor.o

@@ -3,12 +3,23 @@
 #include "thread.h"
 #include "queue.h"
 #include "reactor.h"
+#include "socket.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include <sys/time.h>
+
+typedef struct im 
+{
+	int servfd;/*保存服务器套接字*/
+	struct reactor *reactor;/*反应堆模型*/
+	struct thread *acceptthread;//接收sock线程
+} im;
+
+struct im imserv; 
 
 int quesort_t(queuenode *src, queuenode *dest)
 {
@@ -28,58 +39,187 @@ int quesort_t(queuenode *src, queuenode *dest)
 	return 0;
 }
 
-void *callback_t(void *arg)
+void *readwrite(void *event, void *arg)
 {
-	debuginfo("callback_t-----%d", *((int *)arg));
+	struct event *uevent = (struct event *)event;
+	if (uevent == NULL)
+	{
+		return NULL;
+	}
+
+	// 	//读取数据
+	if (uevent->eventtype & EV_READ)
+	{
+		/*接收信息*/
+		int recvlen = recv(uevent->fd, uevent->readbuf, READBUF - 1, 0);
+		if (recvlen == -1 || recvlen == 0)
+		{
+			delevent(uevent);
+			freeevent(uevent);
+			debuginfo("%s->%s failed", "readwrite", "recv");
+			return NULL;
+		}
+
+		uevent->readbufsize = recvlen;
+		uevent->readbuf[recvlen] = '\0';
+
+		debuginfo("%s->%s sockid=%d, data=%s", "readwrite", "recv", uevent->fd, uevent->readbuf);
+	}
+
+	return NULL;
+}
+
+void *eventcallback(void *event, void *arg)
+{
+//	debuginfo("eventcallback %d", *((int *)arg));
+
+	return NULL;
+}
+
+void *timercallback(void *event, void *arg)
+{
+//	debuginfo("timercallback %d", *((int *)arg));
+
+	return NULL;
+}
+
+void *closesys(void *event, void *arg)
+{
+//	debuginfo("closesys");
+
+	struct reactor *reactor = (struct reactor *)arg;
+	reactor->listen = 0;
+
+	return NULL;
+}
+
+void *signalalam(void *event, void *arg)
+{
+//	debuginfo("signalalam");
+
+	return NULL;
+}
+
+void *acceptconn(void *data)
+{
+	struct im *im = (struct im *)data;
+
+	struct sockaddr_in clisockaddr;
+	int addrlen = sizeof(struct sockaddr_in);
+	int clientsock = accept(im->servfd, (struct sockaddr *)&clisockaddr, (socklen_t *)&addrlen);
+	if (clientsock < 0)
+	{
+		debuginfo("%s->%s failed clientsock=%d", "acceptconn", "accept", clientsock);
+		return NULL;
+	}
+
+	//将客户端socket设置为non_blocked
+	setnoblock(clientsock);
+
+	//将客户端套接字注册事件
+	struct event *uevent = setevent(im->reactor, clientsock, EV_READ | EV_PERSIST, readwrite, NULL);
+	if (uevent == NULL)
+	{
+		debuginfo("%s->%s failed clientsock=%d", "acceptconn", "setevent", clientsock);
+		return NULL;
+	}
+
+	if (addevent(uevent) == FAILED)
+	{
+		debuginfo("%s->%s failed clientsock=%d", "acceptconn", "addevent", clientsock);
+	}
+
+	debuginfo("%s->%s sockid=%d success", "acceptconn", "accept", clientsock);
 
 	return NULL;
 }
 
 int main()
 {
+	printf("本进程的ID为 %d\n", getpid());
+
 	//2.共享队列互斥处理
 	openlog();
 
 	reactor *reactor = NULL;
-	if ((reactor = createreactor()) != NULL)
+	if ((reactor = createreactor()) == NULL)
 	{
-		int i = 100;
-		event *uevent = setevent(reactor, 1, callback_t, &i);
-		if (addevent(uevent, EV_READ | EV_PERSIST) == SUCCESS)
-		{
-			printf("%s\n", "addevent ok");
-		}
+		return 1;
+	}
+	debuginfo("main->createreactor success");
+	imserv.reactor = reactor;
 
-		uevent = setevent(reactor, 2, callback_t, &i);
-		if (addevent(uevent, EV_READ | EV_PERSIST) == SUCCESS)
-		{
-			printf("%s\n", "addevent ok");
-		}
+	imserv.servfd = cretcpser("192.168.10.123", 6666, 10);
+	if (imserv.servfd < 0)
+	{
+		return 1;
+	}
+	debuginfo("main->cretcpser success");
 
-		struct timespec timer = {2, 0};
-		uevent = settimer(reactor, callback_t, &i, &timer);
-		if (addtimer(uevent, 0) == SUCCESS)
-		{
-			printf("%s\n", "addtimer ok");
-		}
+	imserv.acceptthread = createthread(acceptconn, &imserv, 0);
+	if (imserv.acceptthread == NULL)
+	{
+		return 1;
+	}
+	debuginfo("main->createthread success");
 
-		int j = 101;
-		struct timespec timer2 = {3, 0};
-		uevent = settimer(reactor, callback_t, &j, &timer2);
-		if (addtimer(uevent, 0) == SUCCESS)
-		{
-			printf("%s\n", "addtimer ok");
-		}
+	int i = 100;
+	event *uevent = setevent(reactor, 1, EV_READ | EV_PERSIST, eventcallback, &i);
+	if (addevent(uevent) == SUCCESS)
+	{
+		debuginfo("%s", "addevent ok");
+	}
 
-		if (dispatchevent(reactor) == SUCCESS)
-		{
-			printf("%s\n", "dispatchevent ok");
-		}
+	uevent = setevent(reactor, 2, EV_READ | EV_PERSIST, eventcallback, &i);
+	if (addevent(uevent) == SUCCESS)
+	{
+		debuginfo("%s", "addevent ok");
+	}
 
-		if (destroyreactor(reactor) == SUCCESS)
-		{
-			debuginfo("%s\n", "reactor ok");
-		}
+	struct timespec timer = {2, 0};
+	uevent = setevent(reactor, -1, EV_TIMER, timercallback, &i);
+	if (addtimer(uevent, &timer) == SUCCESS)
+	{
+		debuginfo("%s", "addtimer ok");
+	}
+
+	int j = 101;
+	struct timespec timer2 = {1, 0};
+	uevent = setevent(reactor, -1, EV_TIMER | EV_PERSIST, timercallback, &j);
+	if (addtimer(uevent, &timer2) == SUCCESS)
+	{
+		debuginfo("%s", "addtimer ok");
+	}
+
+	uevent = setevent(reactor, SIGALRM, EV_SIGNAL | EV_PERSIST, signalalam, reactor);
+	if (addsignal(uevent) == SUCCESS)
+	{
+		debuginfo("%s", "addsignal ok");
+	}
+
+	uevent = setevent(reactor, SIGINT, EV_SIGNAL, closesys, reactor);
+	if (addsignal(uevent) == SUCCESS)
+	{
+		debuginfo("%s", "addsignal ok");
+	}
+
+	struct itimerval value1;
+	value1.it_value.tv_sec = 1;
+	value1.it_value.tv_usec = 0;
+	value1.it_interval.tv_sec = 1;
+	value1.it_interval.tv_usec = 0;
+	setitimer(ITIMER_REAL, &value1, NULL);
+
+	if (dispatchevent(reactor) == SUCCESS)
+	{
+		debuginfo("%s", "dispatchevent ok");
+	}
+
+//		for(;;);
+
+	if (destroyreactor(reactor) == SUCCESS)
+	{
+		debuginfo("%s\n", "reactor ok");
 	}
 
 	closelog();

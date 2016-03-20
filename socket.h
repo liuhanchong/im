@@ -5,7 +5,7 @@
 #include <netdb.h>
 
 /*创建socket*/
-int socket(int domain, int socktype, int protocol);
+int sock(int domain, int socktype, int protocol);
 
 /*将本机字节序转换为网络*/
 uint32_t htonlv(uint32_t host);

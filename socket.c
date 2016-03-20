@@ -6,6 +6,8 @@
 #include <netinet/in.h>
 #include <fcntl.h>
 #include <string.h>
+#include <sys/types.h>
+#include <errno.h>
 
 /*将本机字节序转换为网络*/
 uint32_t htonlv(uint32_t host)
@@ -32,7 +34,7 @@ uint16_t ntohsv(uint16_t net)
 }
 
 /*创建socket*/
-int socket(int domain, int socktype, int protocol)
+int sock(int domain, int socktype, int protocol)
 {
 	return socket(domain, socktype, protocol);
 }
@@ -146,22 +148,34 @@ int cretcpser(const char *ip, const int port, const int backlog)
 	int socktype = SOCK_STREAM;
 	int protocol = 0;
 	
-	int sockid = socket(domain, socktype, protocol);
+	int sockid = sock(domain, socktype, protocol);
 	if (sockid < 0)
 	{
+		debuginfo("cretcpser->socket failed");
 		return -1;
 	}
+
+	int flags = 1;
+	struct linger linger = {0, 0};
+	setsocketopt(sockid, SOL_SOCKET, SO_KEEPALIVE, (void *)&flags, sizeof(flags));
+	setsocketopt(sockid, SOL_SOCKET, SO_LINGER, (void *)&linger, sizeof(linger));
+	setsocketopt(sockid, SOL_SOCKET, SO_REUSEADDR, (void *)&flags, sizeof(flags));
+//	setsocketopt(sockid, IPPROTO_IP, TCP_NODELAY, (void *)&flags, sizeof(flags));
 	
 	struct sockaddr_in sockaddr;
 	memset(&sockaddr, 0, sizeof(struct sockaddr_in));
 	setsockaddrin(&sockaddr, domain, port, ip);
-	if (bindsock(sockid, (struct sockaddr *)&sockaddr, sizeof(struct sockaddr_in)) == FAILED)
+	if (bindsock(sockid, (struct sockaddr *)&sockaddr, sizeof(struct sockaddr_in)) != 0)
 	{
+		debuginfo("cretcpser->bindsock failed %d", errno);
+		closesock(sockid);
 		return -1;
 	}
 	
 	if (listensock(sockid, backlog) == -1)
 	{
+		debuginfo("cretcpser->listensock failed");
+		closesock(sockid);
 		return -1;
 	}
 	
