@@ -11,6 +11,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <sys/time.h>
+#include <errno.h>
 
 typedef struct im 
 {
@@ -52,11 +53,13 @@ void *readwrite(void *event, void *arg)
 	{
 		/*接收信息*/
 		int recvlen = recv(uevent->fd, uevent->readbuf, READBUF - 1, 0);
-		if (recvlen == -1 || recvlen == 0)
+		if (recvlen <= 0)
 		{
-			delevent(uevent);
-			freeevent(uevent);
-			debuginfo("%s->%s failed", "readwrite", "recv");
+			if (errno != EINTR)
+			{
+				freeevent(uevent);
+				debuginfo("%s->%s failed", "readwrite", "recv");
+			}
 			return NULL;
 		}
 
@@ -78,7 +81,7 @@ void *eventcallback(void *event, void *arg)
 
 void *timercallback(void *event, void *arg)
 {
-//	debuginfo("timercallback %d", *((int *)arg));
+	debuginfo("timercallback %d", *((int *)arg));
 
 	return NULL;
 }
@@ -100,7 +103,7 @@ void *signalalam(void *event, void *arg)
 	return NULL;
 }
 
-void *acceptconn(void *data)
+static void *acceptconn(void *data)
 {
 	struct im *im = (struct im *)data;
 
@@ -149,7 +152,7 @@ int main()
 	debuginfo("main->createreactor success");
 	imserv.reactor = reactor;
 
-	imserv.servfd = cretcpser("192.168.10.123", 6666, 10);
+	imserv.servfd = cretcpser("10.20.1.21", 6666, 10);
 	if (imserv.servfd < 0)
 	{
 		return 1;
@@ -176,7 +179,7 @@ int main()
 		debuginfo("%s", "addevent ok");
 	}
 
-	struct timespec timer = {2, 0};
+	struct timespec timer = {1, 0};
 	uevent = setevent(reactor, -1, EV_TIMER, timercallback, &i);
 	if (addtimer(uevent, &timer) == SUCCESS)
 	{
@@ -184,7 +187,7 @@ int main()
 	}
 
 	int j = 101;
-	struct timespec timer2 = {1, 0};
+	struct timespec timer2 = {2, 0};
 	uevent = setevent(reactor, -1, EV_TIMER | EV_PERSIST, timercallback, &j);
 	if (addtimer(uevent, &timer2) == SUCCESS)
 	{

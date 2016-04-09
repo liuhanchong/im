@@ -1,6 +1,6 @@
 #include "reactor.h"
 #include "common.h"
-#include "socket.h"
+#include <sys/socket.h>
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/event.h>
@@ -10,25 +10,26 @@
 #include <math.h>
 #include <unistd.h>
 #include <errno.h>
+#include <assert.h>
 
 /*保存处理信号的reactor*/
 static struct reactor *sigreactor = NULL;
 
-/*释放分配的事件*/
-int freeevent(struct event *uevent)
+static void *clearevsig(void *event, void *arg)
 {
-	if (uevent->eventtype & EV_READ || uevent->eventtype & EV_WRITE)
+	assert((event != NULL));
+
+	struct event *uevent = (struct event *)event;
+
+	//对于来到的信号事件
+	if (uevent->fd == uevent->reactor->usigevelist.sockpair[1])
 	{
-		//关闭的同时会自动将kqueue中的事件去掉
-		if (closesock(uevent->fd) == -1)
-		{
-			debuginfo("%s->%s sock %d failed", "freeevent", "close", uevent->fd);
-		}
+		//需要清空缓冲区
+		char array[2];
+		int readlen = recv(uevent->fd, array, 2, 0);
 	}
 
-	free(uevent);
-
-	return SUCCESS;	
+	return NULL;
 }
 
 static void sighandle(int sigid, siginfo_t *siginfo, void *data)
@@ -39,10 +40,10 @@ static void sighandle(int sigid, siginfo_t *siginfo, void *data)
 		return;
 	}
 
-	sigreactor->sigid = sigid;
-	sigreactor->sigstate = 1;
+	sigreactor->usigevelist.sigid[sigid] = sigid;
+	sigreactor->usigevelist.sigstate = 1;
 
-	if (write(sigreactor->sockpair[0], "a", 1) != 1)
+	if (send(sigreactor->usigevelist.sockpair[0], "a", 1, 0) != 1)
 	{
 		//输出错误日志
 		debuginfo("%s->%s failed", "sighandle", "write");
@@ -52,14 +53,17 @@ static void sighandle(int sigid, siginfo_t *siginfo, void *data)
 /*获取指定的socket事件在hash表位置*/
 static struct event *gethashevent(int fd, struct reactor *reactor)
 {
-	int hashindex = fd % reactor->uevelistlen;
-	return &(reactor->uevelist[hashindex]);
+	int hashindex = fd % reactor->uevelist.uevelistlen;
+	return &(reactor->uevelist.uevehashtable[hashindex]);
 }
 
 static int add(struct event *uevent, struct timespec *timer)
 {
+	assert((uevent != NULL));
+
 	if (uevent->eventtype & EV_SIGNAL)
 	{
+		/*注册信号*/
 		struct sigaction usignal;
 		sigemptyset(&usignal.sa_mask);
 		usignal.sa_sigaction = sighandle;
@@ -70,12 +74,14 @@ static int add(struct event *uevent, struct timespec *timer)
 		}
 
 		//加入到用户事件列表
-		int ret = push(&uevent->reactor->usignalevelist, uevent, 0);
+		int ret = push(&uevent->reactor->usigevelist.usignalevelist, uevent, 0);
 		return ret;
 	}
 
 	if (uevent->eventtype & EV_TIMER)
 	{
+		assert((timer != NULL));
+
 		memcpy(&uevent->endtimer, timer, sizeof(struct timespec));
 		memcpy(&uevent->intetimer, timer, sizeof(struct timespec));
 
@@ -137,6 +143,8 @@ static int timercompare(queuenode *src, queuenode *dest)
 /*获取最小超时时间*/
 static int getminouttimers(reactor *reactor, struct timespec *mintimer)
 {
+	assert((reactor != NULL && mintimer != NULL));
+
 	//计算最小超时时间
 	queuenode *headquenode = gethead(&reactor->utimersevelist);
 	if (headquenode == NULL)
@@ -169,23 +177,34 @@ static int getminouttimers(reactor *reactor, struct timespec *mintimer)
 /*遍历信号事件*/
 static int loopsignal(reactor *reactor)
 {
+	assert((reactor != NULL));
+
 	/*没有信号事件*/
-	if (reactor->sigstate != 1)
+	if (reactor->usigevelist.sigstate != 1)
 	{
 		return SUCCESS;
 	}
 
-	reactor->sigstate = 0;/*重置信号状态*/
+	reactor->usigevelist.sigstate = 0;/*重置信号状态*/
 
+	int sigid = 0;
 	queuenode *headquenode = NULL;
-	list *looplist = &reactor->usignalevelist;
-	looplist(looplist, headquenode)
-		struct event *headuevent = (struct event *)headquenode->data;
-		if (reactor->sigid == headuevent->fd)
+	for (int i = 1; i < NSIG; ++i)
+	{
+		if ((sigid = reactor->usigevelist.sigid[i]) == 0)
 		{
-			push(&reactor->uactevelist, headuevent, 0);
+			continue;
 		}
-	endlooplist(looplist, headquenode)
+		reactor->usigevelist.sigid[i] = 0;
+		list *looplist = &reactor->usigevelist.usignalevelist;
+		looplist(looplist, headquenode)
+			struct event *headuevent = (struct event *)headquenode->data;
+			if (sigid == headuevent->fd)
+			{
+				push(&reactor->uactevelist, headuevent, 0);
+			}
+		endlooplist(looplist, headquenode)	
+	}
 
 	return SUCCESS;
 }
@@ -193,6 +212,8 @@ static int loopsignal(reactor *reactor)
 /*遍历计时器事件*/
 static int looptimers(reactor *reactor)
 {
+	assert((reactor != NULL));
+
 	struct timespec curtime = {time(NULL), 0};
 
 	queuenode *headquenode = NULL;
@@ -212,6 +233,8 @@ static int looptimers(reactor *reactor)
 /*获取事件*/
 static event *getevent(int fd, reactor *reactor)
 {
+	assert((reactor != NULL && fd >= 0));
+
 	struct event *hashuevent = gethashevent(fd, reactor);
 	while (hashuevent)
 	{
@@ -228,6 +251,8 @@ static event *getevent(int fd, reactor *reactor)
 
 static int getactevent(reactor *reactor)
 {
+	assert((reactor != NULL));
+
 	//清空激活链表
 	clear(&reactor->uactevelist);
 
@@ -251,10 +276,19 @@ static int getactevent(reactor *reactor)
 			debuginfo("%s->%s failed no:%d", "getactevent", "actevenum", errno);
 			return FAILED;
 		}
+
+		//获取信号事件
+		loopsignal(reactor);
 	}
 
 	//获取定时器超时事件
 	looptimers(reactor);
+
+	if (reactor->usigevelist.sigstate)
+	{
+		//获取信号事件
+		loopsignal(reactor);
+	}
 
 	//获取活动的用户事件
 	for (int i = 0; i < actevenum; i++)
@@ -265,22 +299,7 @@ static int getactevent(reactor *reactor)
 			continue;
 		}
 
-		//对于来到的信号事件
-		if (hashuevent->fd == reactor->sockpair[1])
-		{
-			//需要清空缓冲区
-			char array[2];
-			int readlen = read(hashuevent->fd, array, 2);
-			array[readlen] = '\0';
-
-			//获取信号事件
-			loopsignal(reactor);
-		}
-		//普通的读写事件
-		else
-		{
-			push(&reactor->uactevelist, hashuevent, 0);
-		}
+		push(&reactor->uactevelist, hashuevent, 0);
 	}
 
 	return SUCCESS;
@@ -289,6 +308,8 @@ static int getactevent(reactor *reactor)
 /*处理事件*/
 static int disposeevent(reactor *reactor)
 {
+	assert((reactor != NULL));
+
 	queuenode *headquenode = NULL;
 	looplist(&reactor->uactevelist, headquenode)
 		event *uevent = (event *)headquenode->data;
@@ -345,18 +366,19 @@ struct reactor *createreactor()
 	}
 
 	/*初始化hash表 链地址法处理冲突*/
-	newreactor->uevelistlen = evenumber;
+	newreactor->uevelist.uevelistlen = evenumber;
 	int uevelistsize = sizeof(struct event) * evenumber;
-	newreactor->uevelist = (struct event *)malloc(uevelistsize);
-	if (newreactor->uevelist == NULL)
+	newreactor->uevelist.uevehashtable = (struct event *)malloc(uevelistsize);
+	if (newreactor->uevelist.uevehashtable == NULL)
 	{
 		return NULL;
 	}
-	memset(newreactor->uevelist, 0, uevelistsize);
+	memset(newreactor->uevelist.uevehashtable, 0, uevelistsize);
 
 	pthread_mutexattr_t mutexattr;
 	if (pthread_mutexattr_init(&mutexattr) != 0 ||
-		pthread_mutex_init(&newreactor->uevelistmutex, &mutexattr) != 0)
+		pthread_mutex_init(&newreactor->reactormutex, &mutexattr) != 0 ||
+		pthread_mutex_init(&newreactor->uevelist.uevelistmutex, &mutexattr) != 0)
 	{
 		return NULL;
 	}
@@ -381,7 +403,7 @@ struct reactor *createreactor()
 	}
 
 	/*信号链表*/
-	if (createqueue(&newreactor->usignalevelist, 0, 0, NULL) == FAILED)
+	if (createqueue(&newreactor->usigevelist.usignalevelist, 0, 0, NULL) == FAILED)
 	{
 		return NULL;
 	}
@@ -390,16 +412,16 @@ struct reactor *createreactor()
 	newreactor->listen = 1;
 
 	/*初始化信号*/
-	newreactor->sigstate = 0;
-	newreactor->sigid = 0;
+	newreactor->usigevelist.sigstate = 0;
+	memset(newreactor->usigevelist.sigid, 0, sizeof(newreactor->usigevelist.sigid));
 
 	//创建sock对 并注册读事件
-	if (socketpair(AF_UNIX, SOCK_STREAM, 0, newreactor->sockpair) == -1)
+	if (socketpair(AF_UNIX, SOCK_STREAM, 0, newreactor->usigevelist.sockpair) == -1)
 	{
 		return NULL;
 	}
 
-	event *uevent = setevent(newreactor, newreactor->sockpair[1], EV_READ | EV_PERSIST, NULL, NULL);
+	event *uevent = setevent(newreactor, newreactor->usigevelist.sockpair[1], EV_READ | EV_PERSIST, clearevsig, NULL);
 	if (uevent == NULL)
 	{
 		return NULL;
@@ -416,6 +438,8 @@ struct reactor *createreactor()
 /*设置事件*/
 struct event *setevent(struct reactor *reactor, int fd, int evetype, void *(*callback)(void *, void *), void *arg)
 {
+	assert((reactor != NULL));
+
 	//创建一个事件
 	struct event *newevent = malloc(sizeof(struct event));
 	if (newevent == NULL)
@@ -436,6 +460,8 @@ struct event *setevent(struct reactor *reactor, int fd, int evetype, void *(*cal
 /*添加信号事件*/
 int addsignal(struct event *uevent)
 {
+	assert((uevent != NULL));
+
 	/*信号只对于一个反应堆起作用*/
 	sigreactor = uevent->reactor;
 	return add(uevent, NULL);
@@ -444,31 +470,33 @@ int addsignal(struct event *uevent)
 /*添加计时器事件*/
 int addtimer(struct event *uevent, struct timespec *timer)
 {
+	assert((uevent != NULL && timer != NULL));
+
 	return add(uevent, timer);
 }
 
 /*添加事件*/
 int addevent(event *uevent)
 {
+	assert((uevent != NULL));
+
 	return add(uevent, NULL);
 }
 
 int delevent(event *uevent)
 {
+	assert((uevent != NULL));
+
 	if ((uevent->eventtype & EV_SIGNAL) || (uevent->eventtype & EV_TIMER))
 	{
 		struct list *looplist = (uevent->eventtype & EV_SIGNAL) ? 
-									&uevent->reactor->usignalevelist : &uevent->reactor->utimersevelist;
+									&uevent->reactor->usigevelist.usignalevelist : &uevent->reactor->utimersevelist;
 
 		queuenode *headquenode = NULL;
 		looplist(looplist, headquenode)
 			struct event *headuevent = (struct event *)headquenode->data;
-		 // 针对信号 if (uevent->sigid == headuevent->sigid)
-		 // 针对计时器 if (uevent->callback == headuevent->callback 
-		 // 	&& (timespeccompare(&uevent->timer, &headuevent->timer) == 0))
 			if (headuevent == uevent)
 			{
-//				free(uevent);
 				delete(looplist, headquenode);
 				return SUCCESS;
 			}
@@ -486,16 +514,6 @@ int delevent(event *uevent)
 			if (hashuevent == uevent)
 			{
 				prehashuevent->next = hashuevent->next;
-
-				//关闭的同时会自动将kqueue中的事件去掉
-				// if (closesock(uevent->fd) == -1)
-				// {
-				// 	return FAILED;
-				// }
-
-				// //释放用户注册事件
-				// free(hashuevent);
-
 				return SUCCESS;
 			}
 
@@ -512,6 +530,8 @@ int delevent(event *uevent)
 /*分发消息*/
 int dispatchevent(reactor *reactor)
 {
+	assert((reactor != NULL));
+
 	while (reactor->listen)
 	{
 		if (getactevent(reactor) == FAILED)
@@ -531,37 +551,40 @@ int dispatchevent(reactor *reactor)
 /*销毁反应堆*/
 int destroyreactor(reactor *reactor)
 {
+	assert((reactor != NULL));
+
+	//获取到信号的pair读事件并从hash表删除
+	struct event *pairevent = getevent(reactor->usigevelist.sockpair[1], reactor);
+	delevent(pairevent);
+
 	//释放sock事件
-	for (int i = 0; i < reactor->uevelistlen; i++)
+	for (int i = 0; i < reactor->uevelist.uevelistlen; i++)
 	{
 		struct event *unextevent = NULL;
-		struct event *uevent = reactor->uevelist[i].next;
+		struct event *uevent = reactor->uevelist.uevehashtable[i].next;
 		while (uevent)
 		{
 			unextevent = uevent->next;
-			delevent(uevent);
 			freeevent(uevent);
 			uevent = unextevent;
 		}
 	}
-	free(reactor->uevelist);
+	free(reactor->uevelist.uevehashtable);
 
-	pthread_mutex_destroy(&reactor->uevelistmutex);
+	pthread_mutex_destroy(&reactor->uevelist.uevelistmutex);
 
 	//释放计时器事件
 	queuenode *headquenode = NULL;
 	while (!empty(&reactor->utimersevelist))
 	{
 		headquenode = gethead(&reactor->utimersevelist);
-		delevent(headquenode->data);
 		freeevent(headquenode->data);
 	}
 
 	//释放信号事件
-	while (!empty(&reactor->usignalevelist))
+	while (!empty(&reactor->usigevelist.usignalevelist))
 	{
-		headquenode = gethead(&reactor->usignalevelist);
-		delevent(headquenode->data);
+		headquenode = gethead(&reactor->usigevelist.usignalevelist);
 		freeevent(headquenode->data);
 	}
 
@@ -569,53 +592,44 @@ int destroyreactor(reactor *reactor)
 
 	destroyqueue(&reactor->uactevelist);
 	destroyqueue(&reactor->utimersevelist);
-	destroyqueue(&reactor->usignalevelist);
+	destroyqueue(&reactor->usigevelist.usignalevelist);
 
 	//关闭sock对
-	close(reactor->sockpair[0]);
-//	close(reactor->sockpair[1]);
+	close(reactor->usigevelist.sockpair[0]);
+	freeevent(pairevent);
+
+	pthread_mutex_destroy(&reactor->reactormutex);
 
 	free(reactor);
 
 	return SUCCESS;
 }
 
-// void temp()
-// {
-// 	//读取数据
-// 	if (event.flags & EVFILT_READ)
-// 	{
-// 		/*接收信息*/
-// 		int recvlen = recv(event.ident, uevent.readbuf, READBUF, 0);
-// 		if (recvlen == -1 || recvlen == 0)
-// 		{
-// 			delevent(&uevent);
-// 			continue;
-// 		}
+/*释放分配的事件*/
+int freeevent(struct event *uevent)
+{
+	assert((uevent != NULL));
+	
+	delevent(uevent);
 
-// 		uevent.readbufsize = recvlen;
-// 	}
-// 	//写数据
-// 	else if (event.flags & EVFILT_WRITE)
-// 	{
-// 		continue;
-// 	}
-// 	//错误数据
-// 	else if (event.flags & EV_ERROR)
-// 	{
-// 		delevent(&uevent);
-// 		continue;
-// 	}
-// 	else
-// 	{
-// 		continue;
-// 	}
-// }
+	if (uevent->eventtype & EV_READ || uevent->eventtype & EV_WRITE)
+	{
+		//关闭的同时会自动将kqueue中的事件去掉
+		if (close(uevent->fd) == -1)
+		{
+			debuginfo("%s->%s sock %d failed", "freeevent", "close", uevent->fd);
+		}
+	}
+	else if (uevent->eventtype & EV_SIGNAL)
+	{
+		if (!(uevent->fd > 0 && uevent->fd <= NSIG) ||
+			sigaction(uevent->fd, &uevent->oldsig, NULL) == -1)
+		{
+			debuginfo("%s->%s sigid %d failed", "freeevent", "sigaction", uevent->fd);
+		}
+	}
 
-// for (int i = 0; i < uevent->reactor->uevelistlen; i++)
-// 	{	
-// 		if (uevent->reactor->uevelist[i].next == NULL)
-// 		{
-// 			debuginfo("addevent--%d%s", i, "ok");
-// 		}
-// 	}
+	free(uevent);
+
+	return SUCCESS;	
+}

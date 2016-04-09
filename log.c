@@ -7,6 +7,10 @@
 #include <time.h>
 #include <errno.h>
 #include <stdlib.h>
+#include <dirent.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 #define LOGTYPE 3 /*日志的分类 debug error dump等*/
 #define LOGSIZE 400 /*m每条日志信息最大长度*/
@@ -121,6 +125,8 @@ static int writelog(int logtype, const char *log, int size)
 		logs.filearray[index] = tempfileno;
 	}
 
+	fsync(fileno);
+
 	return SUCCESS;
 }
 
@@ -128,6 +134,17 @@ static int writelog(int logtype, const char *log, int size)
 int openlog()
 {
 	memset(&logs, 0, sizeof(log));
+
+	//判断日志目录是都存在
+	DIR *logdir = NULL;
+	if ((logdir = opendir("./logfile")) == NULL)
+	{
+		mkdir("./logfile", S_IRUSR | S_IWUSR | S_IXUSR);
+	}
+	else
+	{
+		closedir(logdir);
+	}
 
 	char *title[LOGTYPE] = 
 	{

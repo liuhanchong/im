@@ -17,21 +17,32 @@
 #define EV_PERSIST 0x10 //持久事件
 #define EV_ET 0x20 //边缘触发模式
 
+typedef struct eventhashtable
+{
+	struct event *uevehashtable;/*用户注册事件hash列表*/
+	pthread_mutex_t uevelistmutex;/*用户事件列表互斥锁*/
+	int uevelistlen;/*保存用户注册散列表长度*/
+} eventhashtable; 
+
+typedef struct signalevent
+{
+	int sigid[NSIG];/*注册信号类型*/
+	int sigstate;/*注册事件状态 0-未触发 1-触发*/
+	list usignalevelist;/*用户注册的信号事件列表*/
+	int sockpair[2];//sockpair对，用于信号触发
+} signalevent;
+
 typedef struct reactor
 {
 	int reactorid;
-	struct event *uevelist;/*用户注册事件列表*/
-	int uevelistlen;/*保存用户注册散列表长度*/
-	pthread_mutex_t uevelistmutex;/*用户事件列表互斥锁*/
+	pthread_mutex_t reactormutex;/*反应堆锁*/
+	eventhashtable uevelist;/*用户注册读写事件hash列表*/
 	list uactevelist;/*用户注册的活动事件列表*/
 	list utimersevelist;/*用户注册的计时器列表*/
-	int sigid;/*注册信号类型*/
-	int sigstate;/*注册事件状态 0-未触发 1-触发*/
-	list usignalevelist;/*用户注册的信号事件列表*/
+	signalevent usigevelist;/*用户注册的信号事件列表*/
 	struct kevent *kevelist;/*系统内核事件列表*/
 	int kevelistlen;/*系统注册时间列表*/
 	int listen;//是否监听事件
-	int sockpair[2];//sockpair对，用于信号触发
 } reactor;
 
 typedef struct event
@@ -50,9 +61,6 @@ typedef struct event
 	struct sigaction oldsig;/*保存设置前信号处理*/
 	struct event *next; 
 } event;
-
-/*释放分配的事件*/
-int freeevent(struct event *uevent);
 
 /*创建反应堆*/
 struct reactor *createreactor();
@@ -77,5 +85,8 @@ int dispatchevent(reactor *reactor);
 
 /*销毁反应堆*/
 int destroyreactor(reactor *reactor);
+
+/*释放分配的事件*/
+int freeevent(struct event *uevent);
 
 #endif
