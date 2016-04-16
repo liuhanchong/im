@@ -188,7 +188,7 @@ static int loopsignal(reactor *reactor)
 	reactor->usigevelist.sigstate = 0;/*重置信号状态*/
 
 	int sigid = 0;
-	queuenode *headquenode = NULL;
+//	queuenode *headquenode = NULL;
 	for (int i = 1; i < NSIG; ++i)
 	{
 		if ((sigid = reactor->usigevelist.sigid[i]) == 0)
@@ -196,14 +196,14 @@ static int loopsignal(reactor *reactor)
 			continue;
 		}
 		reactor->usigevelist.sigid[i] = 0;
-		list *looplist = &reactor->usigevelist.usignalevelist;
-		looplist(looplist, headquenode)
+		looplist_for(reactor->usigevelist.usignalevelist)
+		{
 			struct event *headuevent = (struct event *)headquenode->data;
 			if (sigid == headuevent->fd)
 			{
 				push(&reactor->uactevelist, headuevent, 0);
 			}
-		endlooplist(looplist, headquenode)	
+		}
 	}
 
 	return SUCCESS;
@@ -216,16 +216,15 @@ static int looptimers(reactor *reactor)
 
 	struct timespec curtime = {time(NULL), 0};
 
-	queuenode *headquenode = NULL;
-	list *looplist = &reactor->utimersevelist;
-	looplist(looplist, headquenode)
+	looplist_for(reactor->utimersevelist)
+	{
 		struct event *headuevent = (struct event *)headquenode->data;
 		if (timespeccompare(&curtime, &headuevent->endtimer) == 1)
 		{
 			break;
 		}
 		push(&reactor->uactevelist, headuevent, 0);
-	endlooplist(looplist, headquenode)
+	}
 
 	return SUCCESS;
 }
@@ -310,8 +309,8 @@ static int disposeevent(reactor *reactor)
 {
 	assert((reactor != NULL));
 
-	queuenode *headquenode = NULL;
-	looplist(&reactor->uactevelist, headquenode)
+	looplist_for(reactor->uactevelist)
+	{
 		event *uevent = (event *)headquenode->data;
 		//定时器事件
 		if (uevent->eventtype & EV_TIMER)
@@ -337,7 +336,7 @@ static int disposeevent(reactor *reactor)
 			delevent(uevent);
 			debuginfo("delete event, this event not is EV_PERSIST event");
 		}
-	endlooplist(&reactor->uactevelist, headquenode)
+	}
 
 	return SUCCESS;
 }
@@ -492,15 +491,16 @@ int delevent(event *uevent)
 		struct list *looplist = (uevent->eventtype & EV_SIGNAL) ? 
 									&uevent->reactor->usigevelist.usignalevelist : &uevent->reactor->utimersevelist;
 
-		queuenode *headquenode = NULL;
-		looplist(looplist, headquenode)
+		looplist_for(*looplist)
+		{
 			struct event *headuevent = (struct event *)headquenode->data;
 			if (headuevent == uevent)
 			{
 				delete(looplist, headquenode);
 				return SUCCESS;
 			}
-		endlooplist(looplist, headquenode)
+		}
+
 
 		return FAILED;
 	}

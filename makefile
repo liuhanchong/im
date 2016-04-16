@@ -35,6 +35,7 @@ reactor : reactor.h reactor.c common.h socket.h
 
 clear :
 	rm -f *.o *.gch im ./logfile/*.log
+	rm -fd logfile
 	clear
 
 clearlog :

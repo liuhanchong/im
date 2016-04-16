@@ -152,9 +152,10 @@ int main()
 	debuginfo("main->createreactor success");
 	imserv.reactor = reactor;
 
-	imserv.servfd = cretcpser("10.20.1.21", 6666, 10);
+	imserv.servfd = cretcpser("192.168.10.123", 6666, 10);
 	if (imserv.servfd < 0)
 	{
+		debuginfo("main->cretcpser failed");
 		return 1;
 	}
 	debuginfo("main->cretcpser success");
@@ -226,6 +227,70 @@ int main()
 	}
 
 	closelog();
+
+	// struct list list;
+	// createqueue(&list, 100, 0, NULL);
+	// if (empty(&list))
+	// {
+	// 	// printf("%s\n", "empty");
+
+	// 	printf("%ld %ld %d\n", getcurqueuelen(&list), getmaxqueuelen(&list), full(&list));
+
+	// 	looplist_test(list)
+	// 	{
+	// 		int *data = (int *)headquenode->data;
+	// 		printf("%d", *data);
+	// 	}
+	// 	printf("\n");
+
+	// 	int array[10] = {0,9,3,7,6,4,1,2,8,0};
+	// 	for (int i = 0; i < 1; i++)
+	// 	{
+	// 		push(&list, &array[i], array[i]);
+	// 	}
+
+	// 	printf("%ld %ld %d\n", getcurqueuelen(&list), getmaxqueuelen(&list), full(&list));
+
+	// 	looplist_test(list)
+	// 	{
+	// 		int *data = (int *)headquenode->data;
+	// 		printf("%d", *data);
+	// 	}
+	// 	printf("\n");
+
+	// 	for (int i = 1; i < 6; i++)
+	// 	{
+	// 		push(&list, &array[i], array[i]);
+	// 	}
+
+	// 	printf("%ld %ld %d\n", getcurqueuelen(&list), getmaxqueuelen(&list), full(&list));
+
+	// 	looplist_test(list)
+	// 	{
+	// 		int *data = (int *)headquenode->data;
+	// 		printf("%d ", *data);
+	// 	}
+	// 	printf("\n");
+
+	// 	for (int j = 1; j <= 19; j++)
+	// 	{
+	// 		for (int i = 1; i < 6; i++)
+	// 		{
+	// 			push(&list, &array[i], array[i]);
+	// 		}
+	// 	}
+
+	// 	printf("%ld %ld %d\n", getcurqueuelen(&list), getmaxqueuelen(&list), full(&list));
+
+	// 	looplist_test(list)
+	// 	{
+	// 		int *data = (int *)headquenode->data;
+	// 		printf("%d ", *data);
+	// 	}
+	// 	printf("\n");
+	// }
+
+	// return 1;
 
 	// openlog();
 
