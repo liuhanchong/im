@@ -1,7 +1,7 @@
 #ifndef REACTOR_H
 #define REACTOR_H
 
-#include "queue.h"
+#include "../queue.h"
 #include <time.h>
 #include <signal.h>
 

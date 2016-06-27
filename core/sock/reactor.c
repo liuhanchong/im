@@ -1,5 +1,5 @@
 #include "reactor.h"
-#include "common.h"
+#include "../util.h"
 #include <sys/socket.h>
 #include <stdlib.h>
 #include <sys/types.h>
@@ -420,7 +420,8 @@ struct reactor *createreactor()
 		return NULL;
 	}
 
-	event *uevent = setevent(newreactor, newreactor->usigevelist.sockpair[1], EV_READ | EV_PERSIST, clearevsig, NULL);
+	event *uevent = setevent(newreactor, newreactor->usigevelist.sockpair[1],
+					 		EV_READ | EV_PERSIST, clearevsig, NULL);
 	if (uevent == NULL)
 	{
 		return NULL;

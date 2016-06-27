@@ -1,5 +1,5 @@
-#include "common.h"
 #include "io.h"
+#include "../util.h"
 #include <stdarg.h>
 #include <string.h>
 #include <stdio.h>
@@ -24,9 +24,44 @@ typedef struct log
 	int filearray[LOGTYPE]; /*保存日志文件类型的文件描述符 0-debug 1-error 2.dump*/
 	pthread_mutex_t logmutex;/*日志锁*/
 	char *title[LOGTYPE]; /*保存日志文件标题*/
+	char filename[LOGNAMELEN * LOGTYPE];/*保存当前的文件名*/
 } log;
 
 static log logs; 
+
+/*获取文件索引*/
+static int getfileindex(int logtype)
+{
+	int index = 0;
+	switch (logtype)
+	{
+	case 1: /*debug*/
+		index = 0;
+		break;
+
+	case 2: /*error*/
+		index = 1;
+		break;
+
+	case 3: /*dump*/
+		index = 2;
+		break;
+
+	default: /*debug*/
+		index = 0;
+		break;
+	}
+
+	return index;
+}
+
+/*判断文件是否删除*/
+static int isdelfile(int logtype)
+{
+	int index = getfileindex(logtype);
+	char *filename = &logs.filename[index * LOGNAMELEN];
+	return (!existfile(filename));
+}
 
 /*合并日志信息*/
 static int combinelog(char *title, char *log, int logsize,
@@ -66,7 +101,7 @@ static int genfilename(char *name, int size, char *title)
 }
 
 /*生成日志文件*/
-static int genlogfile(char *title)
+static int genlogfile(char *title, int index)
 {
 	char name[LOGNAMELEN];
 	int flag = O_WRONLY | O_CREAT | O_EXCL | O_APPEND;
@@ -78,32 +113,37 @@ static int genlogfile(char *title)
 		return -1;
 	}
 
+	/*保存最新生成的文件名*/
+	strncpy(&logs.filename[LOGNAMELEN * index], name, strlen(name) + 1);
+
 	/*此处必须为创建新的不存在文件*/
 	return openfile(name, flag, mode);
 }
 
+/*生成删除的日志文件*/
+static void gendelfile(int logtype)
+{
+	if (isdelfile(logtype))
+	{
+		int index = getfileindex(logtype);
+		int fileno = logs.filearray[index];
+		char *title = logs.title[index];
+		closefile(fileno);
+
+		int tempfileno = -1;
+		if ((tempfileno = genlogfile(title, index)) == -1)
+		{
+			return;
+		}
+
+		//成功后才将最新的文件描述符保存
+		logs.filearray[index] = tempfileno;	
+	}
+}
+
 static int writelog(int logtype, const char *log, int size)
 {
-	int index = 0;
-	switch (logtype)
-	{
-	case 1: /*debug*/
-		index = 0;
-		break;
-
-	case 2: /*error*/
-		index = 1;
-		break;
-
-	case 3: /*dump*/
-		index = 2;
-		break;
-
-	default: /*debug*/
-		index = 0;
-		break;
-	}
-
+	int index = getfileindex(logtype);
 	int fileno = logs.filearray[index];
 	char *title = logs.title[index];
 
@@ -116,7 +156,7 @@ static int writelog(int logtype, const char *log, int size)
 	if (filelen(fileno) >= LOGFILEMAXSIZE)
 	{
 		int tempfileno = -1;
-		if (((tempfileno = genlogfile(title)) == -1) || (closefile(fileno) != 0))
+		if (((tempfileno = genlogfile(title, index)) == -1) || (closefile(fileno) != 0))
 		{
 			return FAILED;
 		}
@@ -161,7 +201,7 @@ int openlog()
 	for (int i = 0; i < LOGTYPE; i++)
 	{
 		/*此处必须为创建新的不存在文件*/
-		if ((logs.filearray[i] = genlogfile(logs.title[i])) == -1)
+		if ((logs.filearray[i] = genlogfile(logs.title[i], i)) == -1)
 		{
 			return FAILED;
 		}
@@ -214,7 +254,8 @@ void debuginfo(const char *format, ...)
 {
 #ifndef PRINTDEBUG
 	return;
-#else
+#endif
+
 	if (!format)
 	{
 		return;
@@ -229,12 +270,13 @@ void debuginfo(const char *format, ...)
 	size = combinelog("debug", log, logsize, arg_list, format);
 	va_end(arg_list);
 
+	/*如果日志文件被删除 生成新的日志文件*/
+	gendelfile(1);
+
 	if (size <= 0 || writelog(1, log, size) != SUCCESS)
 	{
 		//出现问题
 	}
-#endif
-
 }
 
 /*打印执行错误信息*/
@@ -253,6 +295,9 @@ void errorinfo(const char *format, ...)
 	va_start(arg_list, format);
 	size = combinelog("error", log, logsize, arg_list, format);
 	va_end(arg_list);
+
+	/*如果日志文件被删除 生成新的日志文件*/
+	gendelfile(2);
 
 	if (size <= 0 || writelog(2, log, size) != SUCCESS)
 	{
@@ -278,6 +323,9 @@ void errorinfo_errno(const char *fun, errno_t errorno)
 	char log[LOGSIZE];
 	size = snprintf(log, LOGSIZE, "error_errno:%s\r\n", perror);
 
+	/*如果日志文件被删除 生成新的日志文件*/
+	gendelfile(2);
+
 	if (size <= 0 || writelog(2, log, size) != SUCCESS)
 	{
 		//出现问题
@@ -300,6 +348,9 @@ void dumpinfo(const char *format, ...)
 	va_start(arg_list, format);
 	size = combinelog("dump", log, logsize, arg_list, format);
 	va_end(arg_list);
+
+	/*如果日志文件被删除 生成新的日志文件*/
+	gendelfile(3);
 
 	if (size <= 0 || writelog(3, log, size) != SUCCESS)
 	{

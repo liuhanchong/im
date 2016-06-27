@@ -92,3 +92,21 @@ int getfcntl(int fileno)
 {
 	return fcntl(fileno, F_GETFL);
 }
+
+/*判断文件是否存在*/
+int existfile(char *path)
+{
+	return (access(path, F_OK) == 0) ? 1 : 0;
+}
+
+/*设置文件长度*/
+int setfilelen(int fileno, int len)
+{
+	return ftruncate(fileno, len);
+}
+
+/*清空文件*/
+int clearfile(int fileno)
+{
+	return setfilelen(fileno, 0);
+}

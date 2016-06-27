@@ -1,9 +1,9 @@
-#include "common.h"
-#include "io.h"
-#include "thread.h"
-#include "queue.h"
-#include "reactor.h"
-#include "socket.h"
+#include "./core/util.h"
+#include "./core/log/io.h"
+#include "./core/thread.h"
+#include "./core/queue.h"
+#include "./core/sock/reactor.h"
+#include "./core/sock/socket.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
@@ -137,9 +137,34 @@ static void *acceptconn(void *data)
 	return NULL;
 }
 
-int main()
+int main(int argc, char *argv[])
 {
-	printf("本进程的ID为 %d\n", getpid());
+	if (argc == 2)
+	{
+		if (strcmp(argv[1], "stop") == 0)
+		{
+			int pid = getpidfromfile();
+			if (pid == -1)
+			{
+				printf("%s\n", "close pro failed, invalid pid!");
+				return 0;
+			}
+
+			if (kill(pid, SIGINT) == -1)
+			{
+				printf("close pro failed, pid=%d!\n", pid);
+				return 0;
+			}
+
+			printf("close pro success, pid=%d!\n", pid);
+
+			return 0;
+		}
+	}
+
+	int pid = getpid();
+	printf("本进程的ID为 %d\n", pid);
+	setpidtofile();
 
 	//2.共享队列互斥处理
 	openlog();
@@ -152,7 +177,7 @@ int main()
 	debuginfo("main->createreactor success");
 	imserv.reactor = reactor;
 
-	imserv.servfd = cretcpser("192.168.10.123", 6666, 10);
+	imserv.servfd = cretcpser("10.20.1.72", 6666, 10);
 	if (imserv.servfd < 0)
 	{
 		debuginfo("main->cretcpser failed");
@@ -219,8 +244,6 @@ int main()
 		debuginfo("%s", "dispatchevent ok");
 	}
 
-//		for(;;);
-
 	if (destroyreactor(reactor) == SUCCESS)
 	{
 		debuginfo("%s\n", "reactor ok");
@@ -228,404 +251,5 @@ int main()
 
 	closelog();
 
-	// struct list list;
-	// createqueue(&list, 100, 0, NULL);
-	// if (empty(&list))
-	// {
-	// 	// printf("%s\n", "empty");
-
-	// 	printf("%ld %ld %d\n", getcurqueuelen(&list), getmaxqueuelen(&list), full(&list));
-
-	// 	looplist_test(list)
-	// 	{
-	// 		int *data = (int *)headquenode->data;
-	// 		printf("%d", *data);
-	// 	}
-	// 	printf("\n");
-
-	// 	int array[10] = {0,9,3,7,6,4,1,2,8,0};
-	// 	for (int i = 0; i < 1; i++)
-	// 	{
-	// 		push(&list, &array[i], array[i]);
-	// 	}
-
-	// 	printf("%ld %ld %d\n", getcurqueuelen(&list), getmaxqueuelen(&list), full(&list));
-
-	// 	looplist_test(list)
-	// 	{
-	// 		int *data = (int *)headquenode->data;
-	// 		printf("%d", *data);
-	// 	}
-	// 	printf("\n");
-
-	// 	for (int i = 1; i < 6; i++)
-	// 	{
-	// 		push(&list, &array[i], array[i]);
-	// 	}
-
-	// 	printf("%ld %ld %d\n", getcurqueuelen(&list), getmaxqueuelen(&list), full(&list));
-
-	// 	looplist_test(list)
-	// 	{
-	// 		int *data = (int *)headquenode->data;
-	// 		printf("%d ", *data);
-	// 	}
-	// 	printf("\n");
-
-	// 	for (int j = 1; j <= 19; j++)
-	// 	{
-	// 		for (int i = 1; i < 6; i++)
-	// 		{
-	// 			push(&list, &array[i], array[i]);
-	// 		}
-	// 	}
-
-	// 	printf("%ld %ld %d\n", getcurqueuelen(&list), getmaxqueuelen(&list), full(&list));
-
-	// 	looplist_test(list)
-	// 	{
-	// 		int *data = (int *)headquenode->data;
-	// 		printf("%d ", *data);
-	// 	}
-	// 	printf("\n");
-	// }
-
-	// return 1;
-
-	// openlog();
-
-	// struct list list;
-	// createqueue(&list, 100, 2, quesort_t);
-	// if (empty(&list))
-	// {
-	// 	printf("%s\n", "empty");
-
-	// 	int array[10] = {0,9,3,7,6,4,1,2,8,0};
-	// 	for (int i = 0; i < 4; i++)
-	// 	{
-	// 		push(&list, &array[i], array[i]);
-	// 	}
-
-	// 	printf("%ld %ld %d\n", getcurqueuelen(&list), getmaxqueuelen(&list), full(&list));
-
-	// 	for (int i = 0; i < 6; i++)
-	// 	{
-	// 		push(&list, &array[i], array[i]);
-	// 	}
-
-	// 	printf("%ld %ld %d\n", getcurqueuelen(&list), getmaxqueuelen(&list), full(&list));
-
-	// 	for (int i = 6; i < 10; i++)
-	// 	{
-	// 		push(&list, &array[i], array[i]);
-	// 	}
-
-	// 	printf("%ld %ld %d\n", getcurqueuelen(&list), getmaxqueuelen(&list), full(&list));
-
-	// 	for (int i = 0; i < 6; i++)
-	// 	{
-	// 		push(&list, &array[i], array[i]);
-	// 	}
-
-	// 	for (int i = 0; i < 6; i++)
-	// 	{
-	// 		push(&list, &array[i], array[i]);
-	// 	}
-
-	// 	for (int i = 0; i < 6; i++)
-	// 	{
-	// 		push(&list, &array[i], array[i]);
-	// 	}
-
-	// 	printf("%ld %ld %d\n", getcurqueuelen(&list), getmaxqueuelen(&list), full(&list));
-
-	// 	queuenode head;
-	// 	for (int i = 0; i < 32; i++)
-	// 	{
-	// 		if (pop(&list, &head))
-	// 		{
-	// 			printf("%s %d\n", "the first is", *((int *)head.data));
-	// 		}
-	// 	}
-
-	// 	queuenode *node = NULL;
-	// 	if ((node = gethead(&list)))
-	// 	{
-	// 		printf("%s %d\n", "the first is head", *((int *)node->data));	
-	// 	}
-
-	// 	if (destroyqueue(&list))
-	// 	{
-	// 		printf("%s\n", "destroyqueue success");
-	// 	}
-	// }
-
-	// closelog();
-
-	// openlog();
-
-	// struct list list;
-	// createqueue(&list, 100, 1, NULL);
-	// if (empty(&list))
-	// {
-	// 	printf("%s\n", "empty");
-
-	// 	int array[10] = {5,9,8,7,6,0,1,2,3,4};
-	// 	for (int i = 0; i < 3; i++)
-	// 	{
-	// 		push(&list, &array[i], array[i]);
-	// 	}
-
-	// 	printf("%ld %ld %d\n", getcurqueuelen(&list), getmaxqueuelen(&list), full(&list));
-
-	// 	queuenode head;
-	// 	if (pop(&list, &head))
-	// 	{
-	// 		printf("%s %d\n", "the first is", *((int *)head.data));
-	// 	}
-
-	// 	if (pop(&list, &head))
-	// 	{
-	// 		printf("%s %d\n", "the first is", *((int *)head.data));
-	// 	}
-
-	// 	if (pop(&list, &head))
-	// 	{
-	// 		printf("%s %d\n", "the first is", *((int *)head.data));
-	// 	}
-
-	// 	for (int i = 3; i < 6; i++)
-	// 	{
-	// 		push(&list, &array[i], array[i]);
-	// 	}
-
-	// 	if (pop(&list, &head))
-	// 	{
-	// 		printf("%s %d\n", "the first is", *((int *)head.data));
-	// 	}
-
-	// 	if (pop(&list, &head))
-	// 	{
-	// 		printf("%s %d\n", "the first is", *((int *)head.data));
-	// 	}
-
-	// 	for (int i = 6; i < 10; i++)
-	// 	{
-	// 		push(&list, &array[i], array[i]);
-	// 	}
-
-	// 	if (pop(&list, &head))
-	// 	{
-	// 		printf("%s %d\n", "the first is", *((int *)head.data));
-	// 	}
-
-	// 	if (pop(&list, &head))
-	// 	{
-	// 		printf("%s %d\n", "the first is", *((int *)head.data));
-	// 	}
-
-	// 	if (pop(&list, &head))
-	// 	{
-	// 		printf("%s %d\n", "the first is", *((int *)head.data));
-	// 	}
-
-	// 	if (pop(&list, &head))
-	// 	{
-	// 		printf("%s %d\n", "the first is", *((int *)head.data));
-	// 	}
-
-	// 	if (pop(&list, &head))
-	// 	{
-	// 		printf("%s %d\n", "the first is", *((int *)head.data));
-	// 	}
-
-	// 	queuenode *node = NULL;
-	// 	if ((node = gethead(&list)))
-	// 	{
-	// 		printf("%s %d\n", "the first is head", *((int *)node->data));	
-	// 	}
-
-	// 	if (destroyqueue(&list))
-	// 	{
-	// 		printf("%s\n", "destroyqueue success");
-	// 	}
-	// }
-
-	// closelog();
-
-	// struct list list;
-	// createqueue(&list, 10, 0, NULL);
-	// if (empty(&list))
-	// {
-	// 	printf("%s\n", "empty");
-
-	// 	int i = 2;
-	// 	int j = 1;
-	// 	push(&list, &j, 0);
-	// 	push(&list, &i, 0);
-	// 	push(&list, &i, 0);
-
-	// 	printf("%ld %ld %d\n", getcurqueuelen(&list), getmaxqueuelen(&list), full(&list));
-
-	// 	push(&list, &i, 0);
-	// 	push(&list, &i, 0);
-	// 	push(&list, &i, 0);
-
-	// 	push(&list, &i, 0);
-	// 	push(&list, &i, 0);
-	// 	push(&list, &i, 0);
-
-	// 	push(&list, &i, 0);
-	// 	push(&list, &i, 0);
-	// 	if (!push(&list, &i, 0) && !push(&list, &i, 0) && !push(&list, &i, 0))
-	// 	{
-	// 		printf("%s\n", "push error");
-	// 	}
-
-	// 	printf("%ld %ld %d\n", getcurqueuelen(&list), getmaxqueuelen(&list), full(&list));
-
-	// 	setmaxqueuelen(&list, 100);
-
-	// 	printf("%ld %ld %d\n", getcurqueuelen(&list), getmaxqueuelen(&list), full(&list));
-
-	// 	queuenode head;
-	// 	if (pop(&list, &head))
-	// 	{
-	// 		printf("%s %d\n", "the first is", *((int *)head.data));
-	// 	}
-
-	// 	queuenode *node = NULL;
-	// 	if ((node = gethead(&list)))
-	// 	{
-	// 		printf("%s %d\n", "the first is", *((int *)node->data));	
-	// 	}
-
-	// 	if (destroyqueue(&list))
-	// 	{
-	// 		printf("%s\n", "destroyqueue success");
-	// 	}
-	// }
-	return 0;
+	return 1;
 }
-
-// void *fun1(void *data)
-// {
-// 	printf("%s-1\n", (char *)data);
-
-// 	for (int i = 0; i <= 20000; i++)
-// 	{
-// 		debuginfo("%s_%s_test", "hello", "liuhanchong");
-// 	}
-
-// 	return NULL;
-// }
-
-// void *fun2(void *data)
-// {
-// 	printf("%s-2\n", (char *)data);
-
-// 	return NULL;
-// }
-
-// int main()
-// {
-// 	if (openlog())
-// 	{
-// 		printf("%s\n", "1");
-// 		thread *thread1 = createthread(fun1, "wo shi fun1", 2);
-// 		thread *thread2 = createthread(fun2, "wo shi fun2", -1);
-
-// 		printf("%s\n", "2");
-// 		if (!thread1 || !thread2)
-// 		{
-// 			printf("%s\n", "thread create failed");
-// 		}
-
-// 		for (int i = 0; i < 11; i++)
-// 		{
-// 			enablethread(thread2, 1);
-// 			sleep(1);
-// 		}
-
-// 		printf("%s\n", "3");
-
-// 		if (!destroythread(thread1) || !destroythread(thread2))
-// 		{
-// 			printf("%s\n", "destroythread failed");
-// 		}
-
-// 		printf("%s\n", "4");
-
-
-// 		if (closelog())
-// 		{
-// 			printf("%s\n", "5");
-// 			printf("%s\n", "init log!");
-// 		}
-// 		else
-// 		{
-// 			printf("2-%s\n", strerror(errno));
-// 		}
-// 	}
-// 	else
-// 	{
-// 		printf("1-%s\n", strerror(errno));	
-// 	}
-	
-// 	return 0;
-// }
-
-// int main()
-// {
-// 	if (openlog())
-// 	{
-// 		char str[100];
-// 		int size = readline(0, str, 100);
-// 		printf("%s\n", strerror(errno));
-// 		printf("%d_%s_%d\n", size, str, filelen(0));
-
-// 		time_t t1 = time(NULL);
-// 		for (int i = 0; i <= 10000000; i++)
-// 		{
-// 			debuginfo("%s_%s_test", "hello", "liuhanchong");
-// 			errorinfo("%s_%s_test", "hello", "liuhanchong");
-// 			errorinfo_errno("main", 100);			
-// 		}
-// 		time_t t2 = time(NULL);
-// 		printf("__________________%ld\n", (long)(t2 -t1));
-
-
-// 		debuginfo("%s_%s_test", "hello", "liuhanchong");
-// 		errorinfo("%s_%s_test", "hello", "liuhanchong");
-// 		errorinfo_errno("main", 100);
-// //		dumpinfo("%s_%s_test", "hello", "liuhanchong");
-
-// 		debuginfo("%s_%s_test", "hello", "liuhanchong");
-// 		errorinfo("%s_%s_test", "hello", "liuhanchong");
-// 		errorinfo_errno("main", 100);
-
-// 		debuginfo("%s_%s_test", "hello", "liuhanchong");
-// 		errorinfo("%s_%s_test", "hello", "liuhanchong");
-// 		errorinfo_errno("main", 100);
-
-// 		debuginfo("%s_%s_test", "hello", "liuhanchong");
-// 		errorinfo("%s_%s_test", "hello", "liuhanchong");
-// 		errorinfo_errno("main", 100);
-// //		dumpinfo("%s_%s_test", "hello", "liuhanchong");
-
-// 		if (closelog())
-// 		{
-// 			printf("%s\n", "init log!");
-// 		}
-// 		else
-// 		{
-// 			printf("2-%s\n", strerror(errno));
-// 		}
-// 	}
-// 	else
-// 	{
-// 		printf("1-%s\n", strerror(errno));	
-// 	}
-	
-// 	return 0;
-// }

@@ -36,4 +36,13 @@ int writefile(int fileno, const char *text, int size);
 /*获取文件选项*/
 int getfcntl(int fileno);
 
+/*判断文件是否存在*/
+int existfile(char *path);
+
+/*设置文件长度*/
+int setfilelen(int fileno, int len);
+
+/*清空文件*/
+int clearfile(int fileno);
+
 #endif

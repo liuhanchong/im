@@ -1,5 +1,5 @@
 #include "thread.h"
-#include "common.h"
+#include "util.h"
 #include <unistd.h>
 #include <stdlib.h>
 
