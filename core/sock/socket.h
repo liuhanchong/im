@@ -49,7 +49,10 @@ int bindsock(int fd, struct sockaddr *addr, socklen_t addrlen);
 int listensock(int fd, int backlog);
 
 /*接收*/
-int acceptsock(int fd, struct sockaddr *addr, socklen_t *addrlen);
+int acceptsock(int servfd);
+
+/*接收*/
+int acceptsockex(int servfd, struct sockaddr *addr, socklen_t *addrlen);
 
 /*连接*/
 int connectsock(int fd, struct sockaddr *addr, socklen_t addrlen);

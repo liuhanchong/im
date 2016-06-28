@@ -42,7 +42,8 @@ typedef struct reactor
 	signalevent usigevelist;/*用户注册的信号事件列表*/
 	struct kevent *kevelist;/*系统内核事件列表*/
 	int kevelistlen;/*系统注册时间列表*/
-	int listen;//是否监听事件
+	int listen;/*是否监听事件*/
+	int servfd;/*服务端套接字*/
 } reactor;
 
 typedef struct event

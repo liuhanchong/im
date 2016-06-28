@@ -103,13 +103,11 @@ void *signalalam(void *event, void *arg)
 	return NULL;
 }
 
-static void *acceptconn(void *data)
+static void *acceptconn(void *uev, void *data)
 {
 	struct im *im = (struct im *)data;
 
-	struct sockaddr_in clisockaddr;
-	int addrlen = sizeof(struct sockaddr_in);
-	int clientsock = accept(im->servfd, (struct sockaddr *)&clisockaddr, (socklen_t *)&addrlen);
+	int clientsock = acceptsock(im->servfd);
 	if (clientsock < 0)
 	{
 		debuginfo("%s->%s failed clientsock=%d", "acceptconn", "accept", clientsock);
@@ -130,6 +128,7 @@ static void *acceptconn(void *data)
 	if (addevent(uevent) == FAILED)
 	{
 		debuginfo("%s->%s failed clientsock=%d", "acceptconn", "addevent", clientsock);
+		return NULL;
 	}
 
 	debuginfo("%s->%s sockid=%d success", "acceptconn", "accept", clientsock);
@@ -184,16 +183,28 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 	debuginfo("main->cretcpser success");
+	imserv.reactor->servfd = imserv.servfd;
 
-	imserv.acceptthread = createthread(acceptconn, &imserv, 0);
-	if (imserv.acceptthread == NULL)
+	// imserv.acceptthread = createthread(acceptconn, &imserv, 0);
+	// if (imserv.acceptthread == NULL)
+	// {
+	// 	return 1;
+	// }
+	event *uevent = setevent(reactor, imserv.servfd, EV_READ | EV_PERSIST, acceptconn, &imserv);
+	if (uevent == NULL)
 	{
+		debuginfo("%s->%s failed sersock=%d", "main", "setevent", imserv.servfd);
 		return 1;
+	}
+
+	if (addevent(uevent) == FAILED)
+	{
+		debuginfo("%s->%s failed sersock=%d", "main", "addevent", imserv.servfd);
 	}
 	debuginfo("main->createthread success");
 
 	int i = 100;
-	event *uevent = setevent(reactor, 1, EV_READ | EV_PERSIST, eventcallback, &i);
+	uevent = setevent(reactor, 1, EV_READ | EV_PERSIST, eventcallback, &i);
 	if (addevent(uevent) == SUCCESS)
 	{
 		debuginfo("%s", "addevent ok");

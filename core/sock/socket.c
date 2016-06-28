@@ -104,6 +104,21 @@ int connectsock(int fd, struct sockaddr *addr, socklen_t addrlen)
 	return connect(fd, addr, addrlen);
 }
 
+/*接收*/
+int acceptsock(int servfd)
+{
+	struct sockaddr_in clisockaddr;
+	int addrlen = sizeof(struct sockaddr_in);
+	int clientsock = accept(servfd, (struct sockaddr *)&clisockaddr, (socklen_t *)&addrlen);
+	if (clientsock < 0)
+	{
+		debuginfo("%s->%s failed clientsock=%d", "acceptconn", "accept", clientsock);
+		return -1;
+	}
+
+	return clientsock;
+}
+
 /*关闭*/
 int closesock(int fd)
 {

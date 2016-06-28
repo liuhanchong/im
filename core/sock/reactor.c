@@ -188,7 +188,6 @@ static int loopsignal(reactor *reactor)
 	reactor->usigevelist.sigstate = 0;/*重置信号状态*/
 
 	int sigid = 0;
-//	queuenode *headquenode = NULL;
 	for (int i = 1; i < NSIG; ++i)
 	{
 		if ((sigid = reactor->usigevelist.sigid[i]) == 0)
@@ -324,8 +323,16 @@ static int disposeevent(reactor *reactor)
 		else if (uevent->eventtype & EV_SIGNAL)
 		{
 		}
-		//读写事件
-		else if (uevent->eventtype & EV_READ || uevent->eventtype & EV_WRITE)
+		//读事件
+		else if (uevent->eventtype & EV_READ)
+		{
+			if (uevent->fd == reactor->servfd)
+			{
+				debuginfo("accpet sock");
+			}
+		}
+		//写事件
+		else if (uevent->eventtype & EV_WRITE)
 		{
 		}
 
