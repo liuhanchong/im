@@ -138,27 +138,24 @@ static void *acceptconn(void *uev, void *data)
 
 int main(int argc, char *argv[])
 {
-	if (argc == 2)
+	if (argc == 2 && (strcmp(argv[1], "stop") == 0))
 	{
-		if (strcmp(argv[1], "stop") == 0)
+		int pid = getpidfromfile();
+		if (pid == -1)
 		{
-			int pid = getpidfromfile();
-			if (pid == -1)
-			{
-				printf("%s\n", "close pro failed, invalid pid!");
-				return 0;
-			}
-
-			if (kill(pid, SIGINT) == -1)
-			{
-				printf("close pro failed, pid=%d!\n", pid);
-				return 0;
-			}
-
-			printf("close pro success, pid=%d!\n", pid);
-
+			printf("%s\n", "close pro failed, invalid pid!");
 			return 0;
 		}
+
+		if (kill(pid, SIGINT) == -1)
+		{
+			printf("close pro failed, pid=%d!\n", pid);
+			return 0;
+		}
+
+		printf("close pro success, pid=%d!\n", pid);
+
+		return 0;
 	}
 
 	int pid = getpid();

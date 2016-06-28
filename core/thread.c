@@ -102,7 +102,7 @@ thread *createthread(void *(*fun)(void *), void *data, int loopsecond)
 		pthread_attr_init(&thattr) == 0)
 	{
 		thread->mode = (loopsecond >= 0) ? 1 : 2;
-		thread->run  = 0;
+		thread->run  = (loopsecond >= 0) ? 1 : 0;
 		thread->fun  = fun;
 		thread->data = data;
 		thread->loop = loopsecond;

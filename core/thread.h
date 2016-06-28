@@ -19,11 +19,11 @@ typedef struct thread
 thread *createthread(void *(*fun)(void *), void *data, int loopsecond);
 /*销毁线程*/
 int destroythread(thread *thread);
-/*将线程执行状态*/
+/*设置线程执行状态*/
 int enablethread(thread *thread, int enable);
 /*线程当前运行状态*/
 int isresume(thread *thread);
-/*设置线程当前执行的状态*/
+/*设置线程执行的任务*/
 void setthreadexecute(thread *thread, void *(*fun)(void *), void *data);
 
 #endif
