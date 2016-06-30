@@ -1,6 +1,6 @@
 bcore = ../core
 blog = ${bcore}/log
-bsock = ${bcore}/sock
+bsock = ${bcore}/net
 blfile = ./logfile
 bmain = ..
 bconf = ./conf

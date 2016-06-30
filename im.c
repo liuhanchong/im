@@ -1,6 +1,6 @@
 #include "./core/util.h"
-#include "./core/sock/reactor.h"
-#include "./core/sock/socket.h"
+#include "./core/net/reactor.h"
+#include "./core/net/socket.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
@@ -152,7 +152,7 @@ int main(int argc, char *argv[])
 	debuginfo("main->createreactor success");
 	imserv.reactor = reactor;
 
-	imserv.servfd = cretcpser("10.20.1.59", 6666, 10);
+	imserv.servfd = cretcpser("10.20.1.119", 6666, 10);
 	if (imserv.servfd < 0)
 	{
 		debuginfo("main->cretcpser failed");
