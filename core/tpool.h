@@ -23,6 +23,6 @@ tpool *createtpool(int maxtnum, int coretnum);
 int destroytpool(tpool *tpool);
 int addttask(tpool *tpool, void *(*fun)(void *), void *data);/*为线程池添加任务*/
 int addthread(tpool *tpool, int addtnum);/*添加线程*/
-int delthread(tnode *tnode);/*删除线程*/
+int delthread(tpool *tpool, tnode *tnode);/*删除线程*/
 
 #endif /* TPOOL_H */

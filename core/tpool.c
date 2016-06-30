@@ -7,7 +7,7 @@ static void *defaulttfun(void *data)
 	return NULL;
 }
 
-static int insert(tpool *tpool)
+static int insertt(tpool *tpool)
 {
 	tnode *newtnode = (tnode *)malloc(sizeof(tnode));
 	if (!newtnode)
@@ -27,7 +27,7 @@ static int insert(tpool *tpool)
 
 	if (push(&tpool->tlist, (void *)newtnode, 0) == FAILED)
 	{
-		delthread(newtnode);
+		delthread(tpool, newtnode);
 		return FAILED;
 	}
 
@@ -79,7 +79,8 @@ tpool *createtpool(int maxtnum, int coretnum)
 	newtpool->coretnum = (coretnum > 0) ? coretnum : 5;
 	newtpool->maxtnum = (maxtnum > 0) ? maxtnum : 10; 
 
-	if (createqueue(&newtpool->tlist, maxtnum, 0, NULL) == FAILED)
+	if (createqueue(&newtpool->tlist, maxtnum, 0, NULL) == FAILED ||
+		addthread(newtpool, coretnum) == FAILED)
 	{
 		free(newtpool);
 		return NULL;
@@ -129,14 +130,16 @@ int addttask(tpool *tpool, void *(*fun)(void *), void *data)
 	return ret;
 }
 
-int delthread(tnode *tnode)
+int delthread(tpool *tpool, tnode *tnode)
 {
 	int ret = 0;
+	lock(tpool->tlist.thmutex);
 	if (tnode)
 	{
 		ret = destroythread(tnode->thread);
 		free(tnode);
 	}
+	unlock(tpool->tlist.thmutex);
 	return ret;
 }
 
@@ -151,7 +154,7 @@ int addthread(tpool *tpool, int addtnum)
 	lock(tpool->tlist.thmutex);
 	for (int i = 1; i <= addtnum; i++)
 	{
-		if (insert(tpool) == FAILED)
+		if (insertt(tpool) == FAILED)
 		{
 			ret = FAILED;
 			debuginfo("insert new thread failed seq=%d, total=%d", i, addtnum);

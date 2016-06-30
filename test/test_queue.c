@@ -8,6 +8,24 @@
 #include <sys/time.h>
 #include <errno.h>
 
+int quesort_t(queuenode *src, queuenode *dest)
+{
+	int *srcuevent = (int *)src->data;
+	int *destuevent = (int *)dest->data;
+
+	if (*srcuevent > *destuevent)
+	{
+		return -1;
+	}
+
+	if (*srcuevent < *destuevent)
+	{
+		return 1;
+	}	
+
+	return 0;
+}
+
 int main()
 {
 	struct list list;

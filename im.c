@@ -1,7 +1,4 @@
 #include "./core/util.h"
-#include "./core/log/io.h"
-#include "./core/thread.h"
-#include "./core/queue.h"
 #include "./core/sock/reactor.h"
 #include "./core/sock/socket.h"
 #include <stdlib.h>
@@ -21,24 +18,6 @@ typedef struct im
 } im;
 
 struct im imserv; 
-
-int quesort_t(queuenode *src, queuenode *dest)
-{
-	int *srcuevent = (int *)src->data;
-	int *destuevent = (int *)dest->data;
-
-	if (*srcuevent > *destuevent)
-	{
-		return -1;
-	}
-
-	if (*srcuevent < *destuevent)
-	{
-		return 1;
-	}	
-
-	return 0;
-}
 
 void *readwrite(void *event, void *arg)
 {
@@ -173,7 +152,7 @@ int main(int argc, char *argv[])
 	debuginfo("main->createreactor success");
 	imserv.reactor = reactor;
 
-	imserv.servfd = cretcpser("10.20.1.72", 6666, 10);
+	imserv.servfd = cretcpser("10.20.1.59", 6666, 10);
 	if (imserv.servfd < 0)
 	{
 		debuginfo("main->cretcpser failed");
