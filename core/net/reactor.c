@@ -247,7 +247,7 @@ static event *getevent(int fd, reactor *reactor)
 	return NULL;
 }
 
-static int getactevent(reactor *reactor)
+static int getactiveevent(reactor *reactor)
 {
 	assert((reactor != NULL));
 
@@ -304,13 +304,14 @@ static int getactevent(reactor *reactor)
 }
 
 /*处理事件*/
-static int disposeevent(reactor *reactor)
+static int handleevent(reactor *reactor)
 {
 	assert((reactor != NULL));
 
 	looplist_for(reactor->uactevelist)
 	{
 		event *uevent = (event *)headquenode->data;
+
 		//定时器事件
 		if (uevent->eventtype & EV_TIMER)
 		{
@@ -326,9 +327,9 @@ static int disposeevent(reactor *reactor)
 		//读事件
 		else if (uevent->eventtype & EV_READ)
 		{
-			if (uevent->fd == reactor->servfd)
+			if (upheartbeat(uevent->reactor->hbeat, uevent->fd) == SUCCESS)
 			{
-				debuginfo("accpet sock");
+//				errorinfo("%s->%s success clientsock=%d", "handleevent", "upheartbeat", uevent->fd);
 			}
 		}
 		//写事件
@@ -338,6 +339,8 @@ static int disposeevent(reactor *reactor)
 
 		//统一处理事件
 		uevent->callback(uevent, uevent->arg);
+
+		//将非持久事件删除		
 		if (!(uevent->eventtype & EV_PERSIST))
 		{
 			delevent(uevent);
@@ -351,14 +354,8 @@ static int disposeevent(reactor *reactor)
 /*创建反应堆*/
 struct reactor *createreactor()
 {
-	reactor *newreactor = (struct reactor *)malloc(sizeof(reactor));
+	reactor *newreactor = (reactor *)malloc(sizeof(reactor));
 	if (newreactor == NULL)
-	{
-		return NULL;
-	}
-
-	newreactor->reactorid = kqueue();
-	if (newreactor->reactorid == -1)
 	{
 		return NULL;
 	}
@@ -371,12 +368,32 @@ struct reactor *createreactor()
 		evenumber = 256;
 	}
 
+	/*初始化心跳管理*/
+	newreactor->hbeat = createheartbeat(evenumber, 10);
+	if (!newreactor->hbeat)
+	{
+		free(newreactor);
+		return NULL;
+	}
+	newreactor->hbeat->reactor = newreactor;
+
+	newreactor->reactorid = kqueue();
+	if (newreactor->reactorid == -1)
+	{
+		free(newreactor);
+		return NULL;
+	}
+
+	/*保存最大连接数*/
+	newreactor->maxconnnum = evenumber;
+
 	/*初始化hash表 链地址法处理冲突*/
 	newreactor->uevelist.uevelistlen = evenumber;
 	int uevelistsize = sizeof(struct event) * evenumber;
 	newreactor->uevelist.uevehashtable = (struct event *)malloc(uevelistsize);
 	if (newreactor->uevelist.uevehashtable == NULL)
 	{
+		free(newreactor);
 		return NULL;
 	}
 	memset(newreactor->uevelist.uevehashtable, 0, uevelistsize);
@@ -386,6 +403,8 @@ struct reactor *createreactor()
 		pthread_mutex_init(&newreactor->reactormutex, &mutexattr) != 0 ||
 		pthread_mutex_init(&newreactor->uevelist.uevelistmutex, &mutexattr) != 0)
 	{
+		free(newreactor->uevelist.uevehashtable);
+		free(newreactor);
 		return NULL;
 	}
 
@@ -393,24 +412,29 @@ struct reactor *createreactor()
 	newreactor->kevelist = (struct kevent *)malloc(sizeof(struct kevent) * evenumber);
 	if (newreactor->kevelist == NULL)
 	{
+		free(newreactor->uevelist.uevehashtable);
+		free(newreactor);
 		return NULL;
 	}
 
 	/*活动链表*/
 	if (createqueue(&newreactor->uactevelist, 0, 0, NULL) == FAILED)
 	{
+		destroyreactor(newreactor);
 		return NULL;
 	}
 
 	/*计时器链表*/
 	if (createqueue(&newreactor->utimersevelist, 0, 2, timercompare) == FAILED)
 	{
+		destroyreactor(newreactor);
 		return NULL;
 	}
 
 	/*信号链表*/
 	if (createqueue(&newreactor->usigevelist.usignalevelist, 0, 0, NULL) == FAILED)
 	{
+		destroyreactor(newreactor);
 		return NULL;
 	}
 
@@ -424,6 +448,7 @@ struct reactor *createreactor()
 	//创建sock对 并注册读事件
 	if (socketpair(AF_UNIX, SOCK_STREAM, 0, newreactor->usigevelist.sockpair) == -1)
 	{
+		destroyreactor(newreactor);
 		return NULL;
 	}
 
@@ -431,11 +456,13 @@ struct reactor *createreactor()
 					 		EV_READ | EV_PERSIST, clearevsig, NULL);
 	if (uevent == NULL)
 	{
+		destroyreactor(newreactor);
 		return NULL;
 	}
 
 	if (addevent(uevent) == FAILED)
 	{
+		destroyreactor(newreactor);
 		return NULL;
 	}
 	
@@ -497,7 +524,8 @@ int delevent(event *uevent)
 	if ((uevent->eventtype & EV_SIGNAL) || (uevent->eventtype & EV_TIMER))
 	{
 		struct list *looplist = (uevent->eventtype & EV_SIGNAL) ? 
-									&uevent->reactor->usigevelist.usignalevelist : &uevent->reactor->utimersevelist;
+									&uevent->reactor->usigevelist.usignalevelist : 
+									&uevent->reactor->utimersevelist;
 
 		looplist_for(*looplist)
 		{
@@ -508,7 +536,6 @@ int delevent(event *uevent)
 				return SUCCESS;
 			}
 		}
-
 
 		return FAILED;
 	}
@@ -542,12 +569,12 @@ int dispatchevent(reactor *reactor)
 
 	while (reactor->listen)
 	{
-		if (getactevent(reactor) == FAILED)
+		if (getactiveevent(reactor) == FAILED)
 		{
 			return FAILED;
 		}
 
-		if (disposeevent(reactor) == FAILED)
+		if (handleevent(reactor) == FAILED)
 		{
 			return FAILED;
 		}
@@ -560,6 +587,8 @@ int dispatchevent(reactor *reactor)
 int destroyreactor(reactor *reactor)
 {
 	assert((reactor != NULL));
+
+	destroyheartbeat(reactor->hbeat);
 
 	//获取到信号的pair读事件并从hash表删除
 	struct event *pairevent = getevent(reactor->usigevelist.sockpair[1], reactor);
@@ -604,7 +633,6 @@ int destroyreactor(reactor *reactor)
 
 	//关闭sock对
 	close(reactor->usigevelist.sockpair[0]);
-	freeevent(pairevent);
 
 	pthread_mutex_destroy(&reactor->reactormutex);
 
@@ -623,6 +651,11 @@ int freeevent(struct event *uevent)
 	if (uevent->eventtype & EV_READ || uevent->eventtype & EV_WRITE)
 	{
 		//关闭的同时会自动将kqueue中的事件去掉
+		if (delheartbeat(uevent->reactor->hbeat, uevent->fd) == SUCCESS)
+		{
+			errorinfo("%s->%s success clientsock=%d", "freeevent", "delheartbeat", uevent->fd);
+		}
+
 		if (close(uevent->fd) == -1)
 		{
 			debuginfo("%s->%s sock %d failed", "freeevent", "close", uevent->fd);
@@ -640,4 +673,16 @@ int freeevent(struct event *uevent)
 	free(uevent);
 
 	return SUCCESS;	
+}
+
+/*删除事件拓展函数*/
+int freeevent_ex(int fd, reactor *reactor)
+{
+	event *uevent = getevent(fd, reactor);
+	if (!uevent)
+	{
+		return FAILED;
+	}
+
+	return freeevent(uevent);
 }

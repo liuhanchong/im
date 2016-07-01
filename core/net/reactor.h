@@ -2,12 +2,13 @@
 #define REACTOR_H
 
 #include "../queue.h"
+#include "heartbeat.h"
 #include <time.h>
 #include <signal.h>
 
 /*网络字节缓冲区*/
 #define READBUF  1024
-// #define WRITEBUF 1024
+#define WRITEBUF 1024
 
 /*反应堆支持的事件类型*/
 #define EV_TIMER 0x01 //定时器事件
@@ -29,7 +30,7 @@ typedef struct signalevent
 	int sigid[NSIG];/*注册信号类型*/
 	int sigstate;/*注册事件状态 0-未触发 1-触发*/
 	list usignalevelist;/*用户注册的信号事件列表*/
-	int sockpair[2];//sockpair对，用于信号触发
+	int sockpair[2];/*sockpair对，用于信号触发*/
 } signalevent;
 
 typedef struct reactor
@@ -44,6 +45,8 @@ typedef struct reactor
 	int kevelistlen;/*系统注册时间列表*/
 	int listen;/*是否监听事件*/
 	int servfd;/*服务端套接字*/
+	int maxconnnum;/*保存最大的连接数*/
+	struct heartbeat *hbeat;/*心跳管理*/
 } reactor;
 
 typedef struct event
@@ -55,8 +58,8 @@ typedef struct event
 	reactor *reactor;/*所属反应器*/
 	unsigned char readbuf[READBUF];
 	int readbufsize;
-	// unsigned char writebuf[WRITEBUF];
-	// int writebufsize;
+	unsigned char writebuf[WRITEBUF];
+	int writebufsize;
 	struct timespec endtimer;/*保存定时器结束时间*/
 	struct timespec intetimer;/*保存定时间隔*/
 	struct sigaction oldsig;/*保存设置前信号处理*/
@@ -80,6 +83,9 @@ int addevent(event *uevent);
 
 /*删除事件*/
 int delevent(event *uevent);
+
+/*删除事件拓展函数*/
+int freeevent_ex(int fd, reactor *reactor);
 
 /*分发消息*/
 int dispatchevent(reactor *reactor);

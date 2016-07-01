@@ -36,8 +36,8 @@ void *readwrite(void *event, void *arg)
 		{
 			if (errno != EINTR)
 			{
+				debuginfo("%s->%s failed sockid=%d", "readwrite", "recv", uevent->fd);
 				freeevent(uevent);
-				debuginfo("%s->%s failed", "readwrite", "recv");
 			}
 			return NULL;
 		}
@@ -110,6 +110,17 @@ static void *acceptconn(void *uev, void *data)
 		return NULL;
 	}
 
+	if (addheartbeat(im->reactor->hbeat, clientsock) == SUCCESS)
+	{
+		errorinfo("%s->%s success clientsock=%d", "acceptconn", "addheartbeat", clientsock);
+		return NULL;	
+	}
+	else
+	{
+		errorinfo("%s->%s failed clientsock=%d", "acceptconn", "addheartbeat", clientsock);
+		return NULL;
+	}
+
 	debuginfo("%s->%s sockid=%d success", "acceptconn", "accept", clientsock);
 
 	return NULL;
@@ -147,12 +158,13 @@ int main(int argc, char *argv[])
 	reactor *reactor = NULL;
 	if ((reactor = createreactor()) == NULL)
 	{
+		debuginfo("main->createreactor failed!");
 		return 1;
 	}
 	debuginfo("main->createreactor success");
 	imserv.reactor = reactor;
 
-	imserv.servfd = cretcpser("10.20.1.119", 6666, 10);
+	imserv.servfd = cretcpser("10.20.1.17", 6666, 10);
 	if (imserv.servfd < 0)
 	{
 		debuginfo("main->cretcpser failed");
