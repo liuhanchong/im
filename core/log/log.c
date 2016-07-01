@@ -152,6 +152,8 @@ static int writelog(int logtype, const char *log, int size)
 		return FAILED;
 	}
 
+	fsync(fileno);
+
 	//日志文件过大
 	if (filelen(fileno) >= LOGFILEMAXSIZE)
 	{
@@ -164,8 +166,6 @@ static int writelog(int logtype, const char *log, int size)
 		//成功后才将最新的文件描述符保存
 		logs.filearray[index] = tempfileno;
 	}
-
-	fsync(fileno);
 
 	return SUCCESS;
 }

@@ -34,11 +34,9 @@ void *readwrite(void *event, void *arg)
 		int recvlen = recv(uevent->fd, uevent->readbuf, READBUF - 1, 0);
 		if (recvlen <= 0)
 		{
-			if (errno != EINTR)
-			{
-				debuginfo("%s->%s failed sockid=%d", "readwrite", "recv", uevent->fd);
-				freeevent(uevent);
-			}
+			debuginfo("%s->%s failed sockid=%d", "readwrite", "recv", uevent->fd);
+			freeevent(uevent);
+			
 			return NULL;
 		}
 
