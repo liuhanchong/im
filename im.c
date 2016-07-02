@@ -44,6 +44,54 @@ void *readwrite(void *event, void *arg)
 		uevent->readbuf[recvlen] = '\0';
 
 		debuginfo("%s->%s sockid=%d, data=%s", "readwrite", "recv", uevent->fd, uevent->readbuf);
+
+		//将客户端套接字注册事件
+		struct event *urevent = setevent(uevent->reactor, uevent->fd, EV_WRITE,
+		 								readwrite, NULL);
+		if (urevent == NULL)
+		{
+			debuginfo("%s->%s failed clientsock=%d", "readwrite", "setevent", uevent->fd);
+			return NULL;
+		}
+
+		strncpy((char *)urevent->writebuf, "wo shi server", 13);
+		uevent->writebufsize = 13;
+		urevent->writebuf[uevent->writebufsize] = '\0';
+
+		if (addevent(urevent) == FAILED)
+		{
+			debuginfo("%s->%s failed clientsock=%d", "readwrite", "addevent", uevent->fd);
+			return NULL;
+		}
+	}
+	else if (uevent->eventtype & EV_WRITE)
+	{
+		/*接收信息*/
+
+		int sendlen = send(uevent->fd, uevent->writebuf, uevent->writebufsize, 0);
+		if (sendlen <= 0)
+		{
+			debuginfo("%s->%s failed sockid=%d", "readwrite", "send", uevent->fd);
+			freeevent(uevent);
+			
+			return NULL;
+		}
+
+		debuginfo("%s->%s sockid=%d, data=%s", "readwrite", "send", uevent->fd, uevent->writebuf);
+
+		//将客户端套接字注册事件
+		struct event *uwevent = setevent(uevent->reactor, uevent->fd, EV_READ, readwrite, NULL);
+		if (uwevent == NULL)
+		{
+			debuginfo("%s->%s failed clientsock=%d", "readwrite", "setevent_2", uevent->fd);
+			return NULL;
+		}
+
+		if (addevent(uwevent) == FAILED)
+		{
+			debuginfo("%s->%s failed clientsock=%d", "readwrite", "addevent_2", uevent->fd);
+			return NULL;
+		}
 	}
 
 	return NULL;
@@ -162,7 +210,7 @@ int main(int argc, char *argv[])
 	debuginfo("main->createreactor success");
 	imserv.reactor = reactor;
 
-	imserv.servfd = cretcpser("10.20.1.17", 6666, 10);
+	imserv.servfd = cretcpser("192.168.10.123", 6666, 10);
 	if (imserv.servfd < 0)
 	{
 		debuginfo("main->cretcpser failed");

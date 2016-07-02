@@ -1,5 +1,5 @@
-#ifndef HEARTBEAT_H
-#define HEARTBEAT_H
+#ifndef HBEAT_H
+#define HBEAT_H
 
 #include "../thread.h"
 #include "reactor.h"

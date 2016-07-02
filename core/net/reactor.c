@@ -57,6 +57,25 @@ static struct event *gethashevent(int fd, struct reactor *reactor)
 	return &(reactor->uevelist.uevehashtable[hashindex]);
 }
 
+/*获取事件*/
+static event *getevent(int fd, reactor *reactor)
+{
+	assert((reactor != NULL && fd >= 0));
+
+	struct event *hashuevent = gethashevent(fd, reactor);
+	while (hashuevent)
+	{
+		if (hashuevent->fd == fd)
+		{
+			return hashuevent;
+		}
+
+		hashuevent = hashuevent->next;
+	}
+
+	return NULL;
+}
+
 static int add(struct event *uevent, struct timespec *timer)
 {
 	assert((uevent != NULL));
@@ -108,6 +127,21 @@ static int add(struct event *uevent, struct timespec *timer)
 		if (kevent(uevent->reactor->reactorid, &addkevent, 1, NULL, 0, NULL) == -1)
 		{
 			return FAILED;
+		}
+
+		/*删除之前重复注册过的事件*/
+		struct event *uexevent = getevent(uevent->fd, uevent->reactor);
+		if (uexevent)
+		{
+			if (delevent(uexevent) == FAILED)
+			{
+				debuginfo("%s->%s failed clientsock=%d", "add", "delevent", uevent->fd);
+			}
+			else
+			{
+				debuginfo("del exist event success clientsock=%d, filter=%s",
+				 uevent->fd, (uevent->eventtype & EV_READ) ? "EVFILT_READ" : "EVFILT_WRITE");
+			}
 		}
 
 		//加入到用户事件列表
@@ -226,25 +260,6 @@ static int looptimers(reactor *reactor)
 	}
 
 	return SUCCESS;
-}
-
-/*获取事件*/
-static event *getevent(int fd, reactor *reactor)
-{
-	assert((reactor != NULL && fd >= 0));
-
-	struct event *hashuevent = gethashevent(fd, reactor);
-	while (hashuevent)
-	{
-		if (hashuevent->fd == fd)
-		{
-			return hashuevent;
-		}
-
-		hashuevent = hashuevent->next;
-	}
-
-	return NULL;
 }
 
 static int getactiveevent(reactor *reactor)

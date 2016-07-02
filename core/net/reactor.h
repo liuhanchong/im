@@ -2,7 +2,7 @@
 #define REACTOR_H
 
 #include "../queue.h"
-#include "heartbeat.h"
+#include "hbeat.h"
 #include <time.h>
 #include <signal.h>
 

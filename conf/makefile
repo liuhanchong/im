@@ -8,13 +8,14 @@ f = -DPRINTDEBUG
 CFLAGS = ${f}
 
 run :
-	make clear link
+	make clear 
+	make link
 	${bmain}/im &
 	cd .
 	top
 
-link : ${bmain}/im.c util io log thread queue socket reactor io tpool heartbeat
-	gcc -o ../im ${bmain}/im.c util.o io.o log.o thread.o queue.o socket.o reactor.o tpool.o heartbeat.o
+link : ${bmain}/im.c util io log thread queue socket reactor io tpool hbeat
+	gcc -o ../im ${bmain}/im.c util.o io.o log.o thread.o queue.o socket.o reactor.o tpool.o hbeat.o
 
 log : ${blog}/log.* ${bcore}/util.h ${blog}/io.h
 	gcc ${CFLAGS} -c ${blog}/log.* ${bcore}/util.h ${blog}/io.h
@@ -40,8 +41,8 @@ reactor : ${bsock}/reactor.* ${bcore}/util.h ${bsock}/socket.h
 tpool : ${bcore}/tpool.* ${bcore}/util.h ${bcore}/queue.h
 	gcc -c ${bcore}/tpool.* ${bcore}/util.h ${bcore}/queue.h
 
-heartbeat : ${bcore}/util.h ${bsock}/heartbeat.* ${bcore}/thread.h
-	gcc -c ${bcore}/util.h ${bsock}/heartbeat.* ${bcore}/thread.h
+hbeat : ${bcore}/util.h ${bsock}/hbeat.* ${bcore}/thread.h
+	gcc -c ${bcore}/util.h ${bsock}/hbeat.* ${bcore}/thread.h
 
 clear :
 	rm -f *.o ${bcore}/*.gch ${blog}/*.gch ${bsock}/*.gch ${bmain}/im ${blfile}/*.log
