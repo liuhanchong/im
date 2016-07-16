@@ -15,8 +15,8 @@ run :
 	cd .
 	top
 
-link : ${bmain}/im.c util io log thread queue socket reactor io tpool hbeat 
-	gcc -L/usr/lib/python2.7/ -lpython2.7 -o ../im ${bmain}/im.c util.o io.o log.o thread.o queue.o socket.o reactor.o tpool.o hbeat.o 
+link : ${bmain}/im.c util io log thread queue socket reactor io tpool hbeat mydb
+	gcc -o ../im ${bmain}/im.c util.o io.o log.o thread.o queue.o socket.o reactor.o tpool.o hbeat.o mydb.o
 
 log : ${blog}/log.* ${bcore}/util.h ${blog}/io.h
 	gcc ${CFLAGS} -c ${blog}/log.* ${bcore}/util.h ${blog}/io.h

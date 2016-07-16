@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <sys/time.h>
 #include <errno.h>
+#include <python2.7/Python.h>
 
 typedef struct im 
 {
@@ -172,6 +173,43 @@ static void *acceptconn(void *uev, void *data)
 	return NULL;
 }
 
+int test1()
+{
+	int num = 0;
+
+    Py_Initialize();//初始化python
+    
+    PyRun_SimpleString("import sys");
+    PyRun_SimpleString("sys.path.append('./')");
+
+    PyObject *pModule = PyImport_ImportModule("testpythonlhc");//引入模块
+    if (!pModule)
+    {
+    	return 1;
+    }
+
+    PyObject *pFunc = PyObject_GetAttrString(pModule, "getnumber");//直接获取模块中的函数
+	if (!pFunc)
+	{
+		return 3;
+	}
+
+//  PyObject *pArg = Py_BuildValue("(s)", "hello_python"); //参数类型转换，传递一个字符串。将c/c++类型的字符串转换为python类型，元组中的python类型查看python文档
+    PyObject *pRet = PyEval_CallObject(pFunc, NULL); //调用直接获得的函数，并传递参数
+    if (!pRet)
+    {
+    	return 4;
+    }
+
+    int nResult = PyArg_Parse(pRet, "i", &num); //将python类型的返回值转换为c/c++类型
+  
+    Py_Finalize(); //释放python
+
+    debuginfo("python return value is %d", num);
+
+    return 0;
+}
+
 int main(int argc, char *argv[])
 {
 	if (argc == 2 && (strcmp(argv[1], "stop") == 0))
@@ -201,6 +239,10 @@ int main(int argc, char *argv[])
 	//2.共享队列互斥处理
 	openlog();
 
+	debuginfo("python test begin");
+	debuginfo("python exe %d", test1());
+	debuginfo("python test end");
+
 	reactor *reactor = NULL;
 	if ((reactor = createreactor()) == NULL)
 	{
@@ -210,7 +252,7 @@ int main(int argc, char *argv[])
 	debuginfo("main->createreactor success");
 	imserv.reactor = reactor;
 
-	imserv.servfd = cretcpser("192.168.10.123", 6666, 10);
+	imserv.servfd = cretcpser("10.20.1.41", 6666, 10);
 	if (imserv.servfd < 0)
 	{
 		debuginfo("main->cretcpser failed");
