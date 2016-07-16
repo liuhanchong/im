@@ -5,6 +5,7 @@ bdb = ${bcore}/db
 blfile = ./logfile
 bmain = ..
 bconf = ./conf
+bpy = ../pyutil
 f = -DPRINTDEBUG
 CFLAGS = ${f}
 
@@ -49,7 +50,7 @@ mydb : ${bcore}/util.h ${bdb}/mydb.*
 	gcc -c ${bcore}/util.h ${bdb}/mydb.* 
 
 clear :
-	rm -f *.o ${bcore}/*.gch ${blog}/*.gch ${bsock}/*.gch ${bmain}/im ${blfile}/*.log
+	rm -f *.o ${bcore}/*.gch ${blog}/*.gch ${bsock}/*.gch ${bmain}/im ${blfile}/*.log ${bpy}/*.pyc
 	rm -fd ${blfile}
 	rm -f pid
 	clear
