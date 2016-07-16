@@ -239,9 +239,7 @@ int main(int argc, char *argv[])
 	//2.共享队列互斥处理
 	openlog();
 
-	debuginfo("python test begin");
 	debuginfo("python exe %d", test1());
-	debuginfo("python test end");
 
 	reactor *reactor = NULL;
 	if ((reactor = createreactor()) == NULL)
