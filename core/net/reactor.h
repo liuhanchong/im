@@ -70,7 +70,8 @@ typedef struct event
 struct reactor *createreactor();
 
 /*设置事件*/
-struct event *setevent(struct reactor *reactor, int fd, int evetype, void *(*callback)(void *, void *), void *arg);
+struct event *setevent(struct reactor *reactor, int fd, int evetype,
+						 void *(*callback)(void *, void *), void *arg);
 
 /*添加信号事件*/
 int addsignal(struct event *uevent);

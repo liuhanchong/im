@@ -547,7 +547,7 @@ int delevent(event *uevent)
 			struct event *headuevent = (struct event *)headquenode->data;
 			if (headuevent == uevent)
 			{
-				delete(looplist, headquenode);
+				del(looplist, headquenode);
 				return SUCCESS;
 			}
 		}

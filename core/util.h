@@ -10,6 +10,14 @@
 #define lock(thmutex) (pthread_mutex_lock(&thmutex))
 #define unlock(thmutex) (pthread_mutex_unlock(&thmutex))
 
+//#ifdef __cplusplus
+//extern "C" {
+//#endif
+
+//#ifdef __cplusplus
+//}
+//#endif
+
 int getmaxfilenumber();
 
 int setmaxfilenumber(int filenumber);
