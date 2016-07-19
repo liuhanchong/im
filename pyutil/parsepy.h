@@ -24,10 +24,15 @@ public:
 	pyobject *pysfs(char *str);
 	pyobject *parseobj(pyobject *ret);
 	char *parsestr(pyobject *ret);
+	int parseint(pyobject *ret);
 	void decref(pyobject *obj);
 	void decrefex(pyobject **obja, int size);
 	pyobject *exem(char *mo, char *attr, pyobject *arg);
 	pyobject *setargtuple(pyobject **arg, int size);
+	pyobject *getdict(pyobject *moudle);
+	pyobject *getdictitem(pyobject *dict, char *item);
+	pyobject *insclass(char *mo, char *cla, pyobject *arg, pyobject *kw);
+	pyobject *callmethod(pyobject *cla, char *method);
 
 private:
 

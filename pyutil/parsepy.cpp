@@ -77,6 +77,17 @@ char *parsepy::parsestr(pyobject *ret)
 	return str;
 }
 
+int parsepy::parseint(pyobject *ret)
+{
+	int va = 0;
+	if (PyArg_Parse(ret, "i", &va) == 0)
+	{
+		return 0;
+	}
+
+	return va;
+}
+
 void parsepy::decref(pyobject *obj)
 {
 	Py_DECREF(obj);
@@ -124,4 +135,45 @@ pyobject *parsepy::setargtuple(pyobject **arg, int size)
 		}
 	}
 	return argtuple;
+}
+
+pyobject *parsepy::getdict(pyobject *moudle)
+{
+	return PyModule_GetDict(moudle);
+}
+
+pyobject *parsepy::getdictitem(pyobject *dict, char *item)
+{
+	return PyDict_GetItemString(dict, item);
+}
+
+pyobject *parsepy::insclass(char *mo, char *cla, pyobject *arg, pyobject *kw)
+{
+	pyobject *moudle = import(mo);
+	if (!moudle)
+	{
+		return NULL;
+	}
+
+	pyobject *dict = getdict(moudle);
+	if (!dict)
+	{
+		decref(moudle);
+		return NULL;
+	}
+
+	pyobject *claobj = getdictitem(dict, cla);
+	if (!claobj)
+	{
+		decref(dict);
+		decref(moudle);
+		return NULL;
+	}
+
+	return PyInstance_New(claobj, arg, kw);
+}
+
+pyobject *parsepy::callmethod(pyobject *cla, char *method)
+{
+	return PyObject_CallMethod(cla, method, NULL);
 }

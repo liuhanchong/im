@@ -210,7 +210,12 @@ int main(int argc, char *argv[])
 	//2.共享队列互斥处理
 	openlog();
 
-	debuginfo("python exe %d", test1());
+//	debuginfo("python exe %d", test1());
+	sys sysc;
+	if (getsyscon("server.ini", &sysc) == SUCCESS)
+	{
+		debuginfo("ip=%s port=%d", sysc.ip, sysc.port);
+	}
 
 	reactor *reactor = NULL;
 	if ((reactor = createreactor()) == NULL)
@@ -221,7 +226,7 @@ int main(int argc, char *argv[])
 	debuginfo("main->createreactor success");
 	imserv.reactor = reactor;
 
-	imserv.servfd = cretcpser("10.20.1.131", 6666, 10);
+	imserv.servfd = cretcpser((char *)sysc.ip, sysc.port, 10);
 	if (imserv.servfd < 0)
 	{
 		debuginfo("main->cretcpser failed");

@@ -1,72 +1,76 @@
 #include "inface.h"
 #include "parsepy.h"
+#include "../core/util.h"
+#include <exception> 
+#include <string.h> 
+using namespace std;
 
 int test(char *rstr, int size)
 {
-	parsepy py;
-
-	py.runpy((char *)"import sys");
-	py.runpy((char *)"sys.path.append('..')");
-
-	pyobject *obj[1] = {py.pysfs((char *)"server.ini")};
-	pyobject *argtuple = py.setargtuple(obj, 1);
-	if (!argtuple)
+	try
 	{
-		return 1;
+		parsepy py;
+
+		//import py moudle
+		py.runpy((char *)"import sys");
+		py.runpy((char *)"sys.path.append('..')");
+
+		//open file
+		pyobject *obj[1] = {py.pysfs((char *)"server.ini")};
+		pyobject *argtuple = py.setargtuple(obj, 1);
+		pyobject *ret = py.exem((char *)"pyutil.pconfig", (char *)"openconfig", argtuple);
+		pyobject *fp = py.parseobj(ret);
+
+		//get key value
+		pyobject *obj4[4] = {fp, py.pysfs((char *)"NET"),
+		 py.pysfs((char *)"ip"), py.pysfs((char *)"127.0.0.1")};
+		argtuple = py.setargtuple(obj4, 4);
+		ret = py.exem((char *)"pyutil.pconfig", (char *)"pastring", argtuple);
+		strncpy(rstr, py.parsestr(ret), size);
+
+		//close file
+		argtuple = py.newtuple(1);
+		py.intuple(argtuple, 0, fp);
+		ret = py.exem((char *)"pyutil.pconfig", (char *)"closeconfig", argtuple);
+	}
+	catch (exception &e)
+	{
+		strncpy(rstr, e.what(), size);
+		return FAILED;
 	}
 
-	pyobject *ret = py.exem((char *)"pyutil.pconfig", (char *)"openconfig", argtuple);
-	if (!ret)
+	return SUCCESS;
+}
+
+int getsyscon(const char *filename, sys *sysc)
+{	
+	try
 	{
-		return 2;
+		parsepy py;
+
+		//import py moudle
+		py.runpy((char *)"import sys");
+		py.runpy((char *)"sys.path.append('..')");
+
+		pyobject *sysclass = py.insclass((char *)"pyutil.inface", (char *)"sys", NULL, NULL); 
+
+		//read config
+		pyobject *obj[2] = {py.pysfs((char *)filename), sysclass};
+		pyobject *argtuple = py.setargtuple(obj, 2);
+		pyobject *ret = py.exem((char *)"pyutil.inface", (char *)"getsyscon", argtuple);
+
+		//获取类的成员
+		pyobject *ip = py.callmethod(sysclass, (char *)"getip");
+		char *cip = py.parsestr(ip);
+		strncpy((char *)sysc->ip, cip, sizeof(sysc->ip));
+
+		pyobject *port = py.callmethod(sysclass, (char *)"getport");
+		sysc->port = py.parseint(port);
+	}
+	catch (exception &e)
+	{
+		return FAILED;
 	}
 
-	pyobject *fp = py.parseobj(ret);
-	if (!fp)
-	{
-		return 3;
-	}
-//	py.decref(ret);
-//	py.decrefex(obj, 1);
-//	py.decref(argtuple);
-
-	pyobject *obj4[4] = {fp, 
-						 py.pysfs((char *)"NET"),
-						 py.pysfs((char *)"ip"),
-						 py.pysfs((char *)"127.0.0.1")};
-	argtuple = py.setargtuple(obj4, 4);
-	if (!argtuple)
-	{
-		return 4;
-	}
-	ret = py.exem((char *)"pyutil.pconfig", (char *)"pastring", argtuple);
-	if (!ret)
-	{
-		return 5;
-	}
-
-	char *str = py.parsestr(ret);
-	if (!str)
-	{
-		return 6;
-	}
-
-	strncpy(rstr, str, size);
-
-//	py.decref(ret);
-//	py.decref(argtuple);
-
-	argtuple = py.newtuple(1);
-	py.intuple(argtuple, 0, fp);
-	ret = py.exem((char *)"pyutil.pconfig", (char *)"closeconfig", argtuple);
-	if (!ret)
-	{
-		return 7;
-	}
-
-	py.decref(ret);
-//	py.decrefex(obj4, 4);
-	py.decref(argtuple);
-
-	return 0;
+	return SUCCESS;	
 }
