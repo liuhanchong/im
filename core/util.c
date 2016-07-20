@@ -32,7 +32,7 @@ int setmaxfilenumber(int filenumber)
 	return FAILED;
 }
 
-int setcorefile(int filesize)
+int setcorefilesize(int filesize)
 {
 	struct rlimit rlt;
 	if (getrlimit(RLIMIT_CORE, &rlt) == 0)

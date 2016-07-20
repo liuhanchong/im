@@ -35,8 +35,11 @@ void *readwrite(void *event, void *arg)
 		int recvlen = recv(uevent->fd, uevent->readbuf, READBUF - 1, 0);
 		if (recvlen <= 0)
 		{
-			debuginfo("%s->%s failed sockid=%d", "readwrite", "recv", uevent->fd);
-			freeevent(uevent);
+			debuginfo("%s->%s failed sockid=%d errno=%d", "readwrite", "recv", uevent->fd, errno);
+			if (errno == EINTR)
+			{
+//				freeevent(uevent);
+			}
 			
 			return NULL;
 		}
@@ -44,7 +47,7 @@ void *readwrite(void *event, void *arg)
 		uevent->readbufsize = recvlen;
 		uevent->readbuf[recvlen] = '\0';
 
-		debuginfo("%s->%s sockid=%d, data=%s", "readwrite", "recv", uevent->fd, uevent->readbuf);
+		debuginfo("%s->%s sockid=%d, data=", "readwrite", "recv", uevent->fd);//, uevent->readbuf
 
 		//将客户端套接字注册事件
 		struct event *urevent = setevent(uevent->reactor, uevent->fd, EV_WRITE,
@@ -56,8 +59,8 @@ void *readwrite(void *event, void *arg)
 		}
 
 		strncpy((char *)urevent->writebuf, "wo shi server", 13);
-		uevent->writebufsize = 13;
-		urevent->writebuf[uevent->writebufsize] = '\0';
+		urevent->writebufsize = 13;
+		urevent->writebuf[urevent->writebufsize] = '\0';
 
 		if (addevent(urevent) == FAILED)
 		{
@@ -67,18 +70,20 @@ void *readwrite(void *event, void *arg)
 	}
 	else if (uevent->eventtype & EV_WRITE)
 	{
-		/*接收信息*/
-
+		/*发送信息*/
 		int sendlen = send(uevent->fd, uevent->writebuf, uevent->writebufsize, 0);
 		if (sendlen <= 0)
 		{
-			debuginfo("%s->%s failed sockid=%d", "readwrite", "send", uevent->fd);
-			freeevent(uevent);
-			
+			debuginfo("%s->%s failed sockid=%d errno=%d", "readwrite", "send", uevent->fd, errno);
+			if (errno == EINTR)
+			{
+//				freeevent(uevent);
+			}
+
 			return NULL;
 		}
 
-		debuginfo("%s->%s sockid=%d, data=%s", "readwrite", "send", uevent->fd, uevent->writebuf);
+		debuginfo("%s->%s sockid=%d, data=", "readwrite", "send", uevent->fd);//, uevent->writebuf
 
 		//将客户端套接字注册事件
 		struct event *uwevent = setevent(uevent->reactor, uevent->fd, EV_READ, readwrite, NULL);
@@ -159,12 +164,12 @@ static void *acceptconn(void *uev, void *data)
 
 	if (addheartbeat(im->reactor->hbeat, clientsock) == SUCCESS)
 	{
-		errorinfo("%s->%s success clientsock=%d", "acceptconn", "addheartbeat", clientsock);
+		debuginfo("%s->%s success clientsock=%d", "acceptconn", "addheartbeat", clientsock);
 		return NULL;	
 	}
 	else
 	{
-		errorinfo("%s->%s failed clientsock=%d", "acceptconn", "addheartbeat", clientsock);
+		debuginfo("%s->%s failed clientsock=%d", "acceptconn", "addheartbeat", clientsock);
 		return NULL;
 	}
 
@@ -209,6 +214,11 @@ int main(int argc, char *argv[])
 
 	//2.共享队列互斥处理
 	openlog();
+
+	if (setcorefilesize(10 * 1024 * 1024) == SUCCESS)
+	{
+		debuginfo("set dump core file success size=%d", getcorefilesize());
+	}
 
 //	debuginfo("python exe %d", test1());
 	sys sysc;

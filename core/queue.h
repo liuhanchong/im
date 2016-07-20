@@ -56,6 +56,6 @@ queuenode *gethead(list *list);
 int pop(list *list, queuenode *node);
 int full(list *list);
 int clear(list *list);
-int del(list *list, queuenode *node);
+int delete(list *list, queuenode *node);
 
 #endif 

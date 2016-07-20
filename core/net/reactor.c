@@ -384,7 +384,7 @@ struct reactor *createreactor()
 	}
 
 	/*初始化心跳管理*/
-	newreactor->hbeat = createheartbeat(evenumber, 10);
+	newreactor->hbeat = createheartbeat(evenumber, 3);
 	if (!newreactor->hbeat)
 	{
 		free(newreactor);
@@ -547,7 +547,7 @@ int delevent(event *uevent)
 			struct event *headuevent = (struct event *)headquenode->data;
 			if (headuevent == uevent)
 			{
-				del(looplist, headquenode);
+				delete(looplist, headquenode);
 				return SUCCESS;
 			}
 		}
@@ -605,9 +605,13 @@ int destroyreactor(reactor *reactor)
 
 	destroyheartbeat(reactor->hbeat);
 
+	debuginfo("1");
+
 	//获取到信号的pair读事件并从hash表删除
 	struct event *pairevent = getevent(reactor->usigevelist.sockpair[1], reactor);
 	delevent(pairevent);
+
+	debuginfo("2");
 
 	//释放sock事件
 	for (int i = 0; i < reactor->uevelist.uevelistlen; i++)
@@ -625,6 +629,8 @@ int destroyreactor(reactor *reactor)
 
 	pthread_mutex_destroy(&reactor->uevelist.uevelistmutex);
 
+	debuginfo("3");
+
 	//释放计时器事件
 	queuenode *headquenode = NULL;
 	while (!empty(&reactor->utimersevelist))
@@ -632,6 +638,8 @@ int destroyreactor(reactor *reactor)
 		headquenode = gethead(&reactor->utimersevelist);
 		freeevent(headquenode->data);
 	}
+
+	debuginfo("4");
 
 	//释放信号事件
 	while (!empty(&reactor->usigevelist.usignalevelist))
@@ -642,9 +650,13 @@ int destroyreactor(reactor *reactor)
 
 	free(reactor->kevelist);
 
+	debuginfo("5");
+
 	destroyqueue(&reactor->uactevelist);
 	destroyqueue(&reactor->utimersevelist);
 	destroyqueue(&reactor->usigevelist.usignalevelist);
+
+	debuginfo("6");
 
 	//关闭sock对
 	close(reactor->usigevelist.sockpair[0]);
@@ -652,6 +664,8 @@ int destroyreactor(reactor *reactor)
 	pthread_mutex_destroy(&reactor->reactormutex);
 
 	free(reactor);
+
+	debuginfo("7");
 
 	return SUCCESS;
 }
@@ -668,7 +682,7 @@ int freeevent(struct event *uevent)
 		//关闭的同时会自动将kqueue中的事件去掉
 		if (delheartbeat(uevent->reactor->hbeat, uevent->fd) == SUCCESS)
 		{
-			errorinfo("%s->%s success clientsock=%d", "freeevent", "delheartbeat", uevent->fd);
+			debuginfo("%s->%s success clientsock=%d", "freeevent", "delheartbeat", uevent->fd);
 		}
 
 		if (close(uevent->fd) == -1)
@@ -693,11 +707,17 @@ int freeevent(struct event *uevent)
 /*删除事件拓展函数*/
 int freeevent_ex(int fd, reactor *reactor)
 {
-	event *uevent = getevent(fd, reactor);
-	if (!uevent)
+	//关闭的同时会自动将kqueue中的事件去掉
+	if (delheartbeat(reactor->hbeat, fd) == SUCCESS)
 	{
+		debuginfo("%s->%s success clientsock=%d", "freeevent_ex", "delheartbeat", fd);
+	}
+
+	if (close(fd) == -1)
+	{
+		debuginfo("%s->%s sock %d failed", "freeevent_ex", "close", fd);
 		return FAILED;
 	}
 
-	return freeevent(uevent);
+	return SUCCESS;
 }

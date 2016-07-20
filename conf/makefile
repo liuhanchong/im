@@ -13,6 +13,7 @@ cc = gcc
 run :
 	make clear 
 	make link
+	clear
 	${bmain}/im &
 	cd .
 	top

@@ -21,14 +21,18 @@ static void *handlefd(void *data)
 		hebeat->fd[i][1]++;
 		hebeat->fdtime[i] = time(NULL);
 
+//		debuginfo("maxoutnum=%d sockid=%d failednum=%d", hebeat->maxouttcount, hebeat->fd[i][0], hebeat->fd[i][1]);
+
 		if (hebeat->fd[i][1] >= hebeat->maxouttcount)
 		{
 			if (freeevent_ex(hebeat->fd[i][0], hebeat->reactor) == SUCCESS)
 			{
-				errorinfo("%s->%s success clientsock=%d", "handlefd", "outtime", hebeat->fd[i][0]);
+				debuginfo("%s->%s success clientsock=%d", "handlefd", "outtime", hebeat->fd[i][0]);
 			}
 		}
 	}
+
+	debuginfo("exe handlefd");
 
 	return NULL;
 }
