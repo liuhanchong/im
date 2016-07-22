@@ -63,14 +63,24 @@ static int isdelfile(int logtype)
 	return (!existfile(filename));
 }
 
+static void timetostr(char *ctime, int size, char *format)
+{
+	time_t curtime = time(NULL);
+	struct tm *strutm = localtime(&curtime);
+	strftime(ctime, size, format, strutm);
+}
+
 /*合并日志信息*/
 static int combinelog(char *title, char *log, int logsize,
 						 va_list arg_list, const char *format)
 {
+	char ctime[30];
+	timetostr(ctime, sizeof(ctime), "%H:%M:%S");
+
 	char info[LOGSIZE];
 	if (vsnprintf(info, LOGSIZE, format, arg_list) > 0)
 	{
-		return snprintf(log, logsize, "%s:%s\r\n", title, info);
+		return snprintf(log, logsize, "%s(%s):%s\r\n", title, ctime, info);
 	}
 
 	return 0;
@@ -81,17 +91,11 @@ static int genfilename(char *name, int size, char *title)
 {
 	memset(name, 0, size);
 
-	//获取当前时间
-	time_t curtime = time(NULL);
-	struct tm *strutm = localtime(&curtime);
-	strutm->tm_year += 1900;
-	strutm->tm_mon += 1;
+	char ctime[30];
+	timetostr(ctime, sizeof(ctime), "%Y%m%d%H%M%S");
 
 	//组合文件名
-	if (strutm && 
-		snprintf(name, size, "%s_%d%d%d%d%d%d.log", title, 
-			strutm->tm_year, strutm->tm_mon, strutm->tm_mday,
-			 strutm->tm_hour, strutm->tm_min, strutm->tm_sec) > 0)
+	if (snprintf(name, size, "%s_%s.log", title, ctime) > 0)
 	{
 		return SUCCESS;
 	}

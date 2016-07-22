@@ -35,11 +35,12 @@ void *readwrite(void *event, void *arg)
 		int recvlen = recv(uevent->fd, uevent->readbuf, READBUF - 1, 0);
 		if (recvlen <= 0)
 		{
-			debuginfo("%s->%s failed sockid=%d errno=%d", "readwrite", "recv", uevent->fd, errno);
 			if (errno == EINTR)
 			{
 //				freeevent(uevent);
 			}
+
+			debuginfo("%s->%s failed sockid=%d errno=%d", "readwrite", "recv", uevent->fd, errno);
 			
 			return NULL;
 		}
@@ -47,7 +48,7 @@ void *readwrite(void *event, void *arg)
 		uevent->readbufsize = recvlen;
 		uevent->readbuf[recvlen] = '\0';
 
-		debuginfo("%s->%s sockid=%d, data=", "readwrite", "recv", uevent->fd);//, uevent->readbuf
+//		debuginfo("%s->%s sockid=%d, add=%p, data=", "readwrite", "recv", uevent->fd, uevent);//, uevent->readbuf
 
 		//将客户端套接字注册事件
 		struct event *urevent = setevent(uevent->reactor, uevent->fd, EV_WRITE,
@@ -74,16 +75,17 @@ void *readwrite(void *event, void *arg)
 		int sendlen = send(uevent->fd, uevent->writebuf, uevent->writebufsize, 0);
 		if (sendlen <= 0)
 		{
-			debuginfo("%s->%s failed sockid=%d errno=%d", "readwrite", "send", uevent->fd, errno);
 			if (errno == EINTR)
 			{
 //				freeevent(uevent);
 			}
 
+			debuginfo("%s->%s failed sockid=%d errno=%d", "readwrite", "send", uevent->fd, errno);
+
 			return NULL;
 		}
 
-		debuginfo("%s->%s sockid=%d, data=", "readwrite", "send", uevent->fd);//, uevent->writebuf
+//		debuginfo("%s->%s sockid=%d, add=%p, data=", "readwrite", "send", uevent->fd, uevent);//, uevent->writebuf
 
 		//将客户端套接字注册事件
 		struct event *uwevent = setevent(uevent->reactor, uevent->fd, EV_READ, readwrite, NULL);
@@ -99,6 +101,50 @@ void *readwrite(void *event, void *arg)
 			return NULL;
 		}
 	}
+
+	return SUCCESS_STR;
+}
+
+static void *acceptconn(void *uev, void *data)
+{
+	struct im *im = (struct im *)data;
+
+	int clientsock = acceptsock(im->servfd);
+	if (clientsock < 0)
+	{
+		debuginfo("%s->%s failed clientsock=%d", "acceptconn", "accept", clientsock);
+		return NULL;
+	}
+
+	//将客户端socket设置为non_blocked
+	setnoblock(clientsock);
+
+	//将客户端套接字注册事件
+	struct event *uevent = setevent(im->reactor, clientsock, EV_READ, readwrite, NULL);
+	if (uevent == NULL)
+	{
+		debuginfo("%s->%s failed clientsock=%d", "acceptconn", "setevent", clientsock);
+		return NULL;
+	}
+
+	if (addevent(uevent) == FAILED)
+	{
+		debuginfo("%s->%s failed clientsock=%d", "acceptconn", "addevent", clientsock);
+		return NULL;
+	}
+
+	if (addheartbeat(im->reactor->hbeat, clientsock) == SUCCESS)
+	{
+		debuginfo("%s->%s success clientsock=%d", "acceptconn", "addheartbeat", clientsock);
+		return NULL;	
+	}
+	else
+	{
+		debuginfo("%s->%s failed clientsock=%d", "acceptconn", "addheartbeat", clientsock);
+		return NULL;
+	}
+
+	debuginfo("%s->%s sockid=%d success", "acceptconn", "accept", clientsock);
 
 	return NULL;
 }
@@ -130,50 +176,6 @@ void *closesys(void *event, void *arg)
 void *signalalam(void *event, void *arg)
 {
 //	debuginfo("signalalam");
-
-	return NULL;
-}
-
-static void *acceptconn(void *uev, void *data)
-{
-	struct im *im = (struct im *)data;
-
-	int clientsock = acceptsock(im->servfd);
-	if (clientsock < 0)
-	{
-		debuginfo("%s->%s failed clientsock=%d", "acceptconn", "accept", clientsock);
-		return NULL;
-	}
-
-	//将客户端socket设置为non_blocked
-	setnoblock(clientsock);
-
-	//将客户端套接字注册事件
-	struct event *uevent = setevent(im->reactor, clientsock, EV_READ | EV_PERSIST, readwrite, NULL);
-	if (uevent == NULL)
-	{
-		debuginfo("%s->%s failed clientsock=%d", "acceptconn", "setevent", clientsock);
-		return NULL;
-	}
-
-	if (addevent(uevent) == FAILED)
-	{
-		debuginfo("%s->%s failed clientsock=%d", "acceptconn", "addevent", clientsock);
-		return NULL;
-	}
-
-	if (addheartbeat(im->reactor->hbeat, clientsock) == SUCCESS)
-	{
-		debuginfo("%s->%s success clientsock=%d", "acceptconn", "addheartbeat", clientsock);
-		return NULL;	
-	}
-	else
-	{
-		debuginfo("%s->%s failed clientsock=%d", "acceptconn", "addheartbeat", clientsock);
-		return NULL;
-	}
-
-	debuginfo("%s->%s sockid=%d success", "acceptconn", "accept", clientsock);
 
 	return NULL;
 }
@@ -321,6 +323,9 @@ int main(int argc, char *argv[])
 	}
 
 	closelog();
+
+
+	printf("success close server");
 
 	return 1;
 }

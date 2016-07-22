@@ -133,14 +133,14 @@ static int add(struct event *uevent, struct timespec *timer)
 		struct event *uexevent = getevent(uevent->fd, uevent->reactor);
 		if (uexevent)
 		{
-			if (delevent(uexevent) == FAILED)
+			if (delevent(uexevent) == SUCCESS)
 			{
-				debuginfo("%s->%s failed clientsock=%d", "add", "delevent", uevent->fd);
+				debuginfo("del exist event success clientsock=%d, filter=%s",
+				 uexevent->fd, (uexevent->eventtype & EV_READ) ? "EVFILT_READ" : "EVFILT_WRITE");
 			}
 			else
 			{
-				debuginfo("del exist event success clientsock=%d, filter=%s",
-				 uevent->fd, (uevent->eventtype & EV_READ) ? "EVFILT_READ" : "EVFILT_WRITE");
+				debuginfo("%s->%s failed clientsock=%d", "add", "delevent", uexevent->fd);
 			}
 		}
 
@@ -307,12 +307,10 @@ static int getactiveevent(reactor *reactor)
 	for (int i = 0; i < actevenum; i++)
 	{
 		struct event *hashuevent = getevent(reactor->kevelist[i].ident, reactor);
-		if (hashuevent == NULL)
+		if (hashuevent != NULL)
 		{
-			continue;
+			push(&reactor->uactevelist, hashuevent, 0);
 		}
-
-		push(&reactor->uactevelist, hashuevent, 0);
 	}
 
 	return SUCCESS;
@@ -330,36 +328,63 @@ static int handleevent(reactor *reactor)
 		//定时器事件
 		if (uevent->eventtype & EV_TIMER)
 		{
+			uevent->callback(uevent, uevent->arg);
+
 			if (uevent->eventtype & EV_PERSIST)
 			{
 				uevent->endtimer.tv_sec = time(NULL) + uevent->intetimer.tv_sec;
+			}
+			else
+			{
+				if (delevent(uevent) == FAILED)
+				{
+					debuginfo("handleevent->del failed");
+				}
+
+				free(uevent);
+
+				debuginfo("del timer success, this timer not is EV_PERSIST event");
 			}
 		}
 		//信号事件
 		else if (uevent->eventtype & EV_SIGNAL)
 		{
-		}
-		//读事件
-		else if (uevent->eventtype & EV_READ)
-		{
-			if (upheartbeat(uevent->reactor->hbeat, uevent->fd) == SUCCESS)
+			uevent->callback(uevent, uevent->arg);
+
+			if (!(uevent->eventtype & EV_PERSIST))
 			{
-//				errorinfo("%s->%s success clientsock=%d", "handleevent", "upheartbeat", uevent->fd);
+				if (delevent(uevent) == FAILED)
+				{
+					debuginfo("handleevent->del failed");
+				}
+
+				free(uevent);
+
+				debuginfo("del sign success, this sign not is EV_PERSIST event");
 			}
 		}
-		//写事件
-		else if (uevent->eventtype & EV_WRITE)
+		//读事件
+		else if (uevent->eventtype & EV_READ || uevent->eventtype & EV_WRITE)
 		{
-		}
+			if (uevent->callback(uevent, uevent->arg))
+			{
+				if (upheartbeat(uevent->reactor->hbeat, uevent->fd) == SUCCESS)
+				{
+					debuginfo("%s->%s success clientsock=%d", "handleevent", "upheartbeat", uevent->fd);
+				}
+			}
 
-		//统一处理事件
-		uevent->callback(uevent, uevent->arg);
+			if (!(uevent->eventtype & EV_PERSIST))
+			{
+				if (delevent(uevent) == FAILED)
+				{
+					debuginfo("handleevent->del failed");
+				}
 
-		//将非持久事件删除		
-		if (!(uevent->eventtype & EV_PERSIST))
-		{
-			delevent(uevent);
-			debuginfo("delete event, this event not is EV_PERSIST event");
+				free(uevent);
+
+				debuginfo("del sock event success, this sock not is EV_PERSIST event");
+			}
 		}
 	}
 

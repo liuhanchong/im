@@ -1,4 +1,5 @@
 #include "hbeat.h"
+#include "reactor.h"
 #include "../util.h"
 #include <stdlib.h>
 #include <unistd.h>
