@@ -112,7 +112,7 @@ static void *acceptconn(void *uev, void *data)
 	int clientsock = acceptsock(im->servfd);
 	if (clientsock < 0)
 	{
-		debuginfo("%s->%s failed clientsock=%d", "acceptconn", "accept", clientsock);
+		debuginfo("%s->%s failed clientsock=%d, errno=%d", "acceptconn", "accept", clientsock, errno);
 		return NULL;
 	}
 

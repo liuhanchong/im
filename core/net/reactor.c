@@ -712,7 +712,7 @@ int freeevent(struct event *uevent)
 
 		if (close(uevent->fd) == -1)
 		{
-			debuginfo("%s->%s sock %d failed", "freeevent", "close", uevent->fd);
+			debuginfo("%s->%s sock=%d failed", "freeevent", "close", uevent->fd);
 		}
 	}
 	else if (uevent->eventtype & EV_SIGNAL)
@@ -743,6 +743,14 @@ int freeevent_ex(int fd, reactor *reactor)
 		debuginfo("%s->%s sock %d failed", "freeevent_ex", "close", fd);
 		return FAILED;
 	}
+
+	event *uevent = getevent(fd, reactor);
+	if (!uevent)
+	{
+		return FAILED;
+	}
+
+	delevent(uevent);
 
 	return SUCCESS;
 }
