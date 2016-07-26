@@ -87,7 +87,7 @@ static int add(struct event *uevent, struct timespec *timer)
 		sigemptyset(&usignal.sa_mask);
 		usignal.sa_sigaction = sighandle;
 		usignal.sa_flags = SA_SIGINFO | SA_RESTART;
-		if (sigaction(uevent->fd, &usignal, &uevent->oldsig) == -1)
+		if (sigaction(uevent->fd, &usignal, uevent->oldsiga) == -1)
 		{
 			return FAILED;
 		}
@@ -222,7 +222,7 @@ static int loopsignal(reactor *reactor)
 	reactor->usigevelist.sigstate = 0;/*重置信号状态*/
 
 	int sigid = 0;
-	for (int i = 1; i < NSIG; ++i)
+	for (int i = 1; i < SIGNUM; ++i)
 	{
 		if ((sigid = reactor->usigevelist.sigid[i]) == 0)
 		{
@@ -527,6 +527,12 @@ struct event *setevent(struct reactor *reactor, int fd, int evetype, void *(*cal
 	newevent->callback = callback;
 	newevent->arg = arg;
 	newevent->reactor = reactor;
+	newevent->oldsiga = (struct sigaction *)malloc(sizeof(struct sigaction));
+	if (newevent->oldsiga == NULL)
+	{
+		free(newevent);
+		return NULL;
+	}
 
 	return newevent;
 }
@@ -628,8 +634,6 @@ int destroyreactor(reactor *reactor)
 {
 	assert((reactor != NULL));
 
-	destroyheartbeat(reactor->hbeat);
-
 	debuginfo("1");
 
 	//获取到信号的pair读事件并从hash表删除
@@ -677,6 +681,8 @@ int destroyreactor(reactor *reactor)
 
 	debuginfo("5");
 
+	destroyheartbeat(reactor->hbeat);
+
 	destroyqueue(&reactor->uactevelist);
 	destroyqueue(&reactor->utimersevelist);
 	destroyqueue(&reactor->usigevelist.usignalevelist);
@@ -717,11 +723,12 @@ int freeevent(struct event *uevent)
 	}
 	else if (uevent->eventtype & EV_SIGNAL)
 	{
-		if (!(uevent->fd > 0 && uevent->fd <= NSIG) ||
-			sigaction(uevent->fd, &uevent->oldsig, NULL) == -1)
+		if (!(uevent->fd > 0 && uevent->fd <= SIGNUM) ||
+			sigaction(uevent->fd, uevent->oldsiga, NULL) == -1)
 		{
 			debuginfo("%s->%s sigid %d failed", "freeevent", "sigaction", uevent->fd);
 		}
+		free(uevent->oldsiga);
 	}
 
 	free(uevent);

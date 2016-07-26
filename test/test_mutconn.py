@@ -4,15 +4,19 @@
 import socket
 import thread
 import threading
+import sys
+sys.path.append("..")
+import pyutil.inface as inface
 
 run = True
 sarray = []
 tarray = []
 
-def proreq(seq, sarray, tarray) :
+def proreq(seq, sarray, tarray, sysc) :
 	try :
 		s = socket.socket()
-		s.connect(('192.168.10.123', 6666))
+
+		s.connect((sysc.getip(), sysc.getport()))
 		sarray.append(s) 
 		tarray.append(threading.currentThread())
 
@@ -28,8 +32,11 @@ def proreq(seq, sarray, tarray) :
 		print 'send success'
 
 try :
+	sysc = inface.sys()
+	inface.getsyscon('../conf/server.ini', sysc)
+
 	for i in range(0, 100) :
-		thread.start_new_thread(proreq, (i, sarray, tarray, ))
+		thread.start_new_thread(proreq, (i, sarray, tarray, sysc, ))
 except :
 	print "Error: unable to start thread"
 

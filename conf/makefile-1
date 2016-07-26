@@ -18,11 +18,12 @@ run :
 	cd .
 	top
 
-link : ${bmain}/im.c util io log thread queue socket  reactor io tpool hbeat parsepy inface
-	$(cc) -pthread util.o io.o log.o thread.o queue.o socket.o reactor.o tpool.o hbeat.o parsepy.o inface.o ${bmain}/im.c -o ../im -std=c99 -lstdc++ -I/usr/include/python2.7/ -L/usr/lib/python2.7/ -lpython2.7
+link : ${bmain}/im.c util io log thread queue socket reactor io tpool hbeat parsepy inface
+	$(cc) -lstdc++ -L/usr/lib/python2.7/ -lpython2.7 ${bmain}/im.c util.o io.o log.o thread.o queue.o socket.o reactor.o tpool.o hbeat.o parsepy.o inface.o -o ../im
 
 log : ${blog}/log.* ${bcore}/util.h ${blog}/io.h
-	$(cc) ${CFLAGS} -std=c99 -c ${blog}/log.* ${bcore}/util.h ${blog}/io.h 
+	$(cc) ${CFLAGS} -c ${blog}/log.* ${bcore}/util.h ${blog}/io.h
+
 io : ${blog}/io.* 
 	$(cc) -c ${blog}/io.*
 
@@ -42,10 +43,10 @@ reactor : ${bsock}/reactor.* ${bcore}/util.h ${bsock}/socket.h
 	$(cc) -c ${bsock}/reactor.* ${bcore}/util.h ${bsock}/socket.h
 
 tpool : ${bcore}/tpool.* ${bcore}/util.h ${bcore}/queue.h
-	$(cc) -std=c99 -c ${bcore}/tpool.* ${bcore}/util.h ${bcore}/queue.h
+	$(cc) -c ${bcore}/tpool.* ${bcore}/util.h ${bcore}/queue.h
 
 hbeat : ${bcore}/util.h ${bsock}/hbeat.* ${bcore}/thread.h
-	$(cc) -std=c99 -c ${bcore}/util.h ${bsock}/hbeat.* ${bcore}/thread.h
+	$(cc) -c ${bcore}/util.h ${bsock}/hbeat.* ${bcore}/thread.h
 
 mydb : ${bcore}/util.h ${bdb}/mydb.*
 	$(cc) -c ${bcore}/util.h ${bdb}/mydb.* 

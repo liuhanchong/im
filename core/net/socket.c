@@ -1,8 +1,8 @@
 #include "socket.h"
 #include "../util.h"
+#include <sys/socket.h>
 #include <unistd.h>
 #include <arpa/inet.h>
-#include <sys/socket.h>
 #include <netinet/in.h>
 #include <fcntl.h>
 #include <string.h>

@@ -28,7 +28,9 @@ typedef struct list
 
 /*遍历所有的节点*/
 #define looplist_for(list) \
-	for (queuenode *headquenode = gethead((&list)), *nextquenode = NULL;  \
+	queuenode *headquenode = NULL; \
+	queuenode *nextquenode = NULL; \
+	for (headquenode = gethead((&list)), nextquenode = NULL;  \
 		(headquenode != NULL && nextquenode != gethead((&list))); \
 		 nextquenode = headquenode = headquenode->next) \
 

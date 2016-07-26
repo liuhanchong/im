@@ -18,6 +18,9 @@
 #define EV_PERSIST 0x10 //持久事件
 #define EV_ET 0x20 //边缘触发模式
 
+/*信号数量*/
+#define SIGNUM 128
+
 typedef struct eventhashtable
 {
 	struct event *uevehashtable;/*用户注册事件hash列表*/
@@ -27,7 +30,7 @@ typedef struct eventhashtable
 
 typedef struct signalevent
 {
-	int sigid[NSIG];/*注册信号类型*/
+	int sigid[SIGNUM];/*注册信号类型*/
 	int sigstate;/*注册事件状态 0-未触发 1-触发*/
 	list usignalevelist;/*用户注册的信号事件列表*/
 	int sockpair[2];/*sockpair对，用于信号触发*/
@@ -62,7 +65,7 @@ typedef struct event
 	int writebufsize;
 	struct timespec endtimer;/*保存定时器结束时间*/
 	struct timespec intetimer;/*保存定时间隔*/
-	struct sigaction oldsig;/*保存设置前信号处理*/
+	struct sigaction *oldsiga;/*保存设置前信号处理*/
 	struct event *next; 
 } event;
 
