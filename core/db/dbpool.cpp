@@ -191,3 +191,56 @@ int deldb(dbpool *dbpool, dbnode *dbnode)
 	unlock(dbpool->dblist.thmutex);
 	return ret;
 }
+
+dbnode *getdb(dbpool *dbpool)
+{
+	struct dbnode *dbnode = NULL;
+	lock(dbpool->dblist.thmutex);
+	looplist_for(dbpool->dblist)
+	{
+		struct dbnode *fdbnode = (struct dbnode *)headquenode->data;
+		if (fdbnode->use == 0)
+		{
+			dbnode = fdbnode;
+			dbnode->use = 1;
+			break;
+		}
+	}
+	unlock(dbpool->dblist.thmutex);
+
+	return dbnode;
+}
+
+void reldb(dbpool *dbpool, dbnode *dbnode)
+{
+	lock(dbpool->dblist.thmutex);
+	dbnode->use = 0;
+	unlock(dbpool->dblist.thmutex);
+}
+
+int getdbpcurlen(dbpool *dbpool)
+{
+	return getcurqueuelen(&dbpool->dblist);
+}
+
+int getdbpmaxlen(dbpool *dbpool)
+{
+	return getmaxqueuelen(&dbpool->dblist);
+}
+
+int getdbpflen(dbpool *dbpool)
+{
+	int count = 0;
+	lock(dbpool->dblist.thmutex);
+	looplist_for(dbpool->dblist)
+	{
+		struct dbnode *fdbnode = (struct dbnode *)headquenode->data;
+		if (fdbnode->use == 0)
+		{
+			count++;
+		}
+	}
+	unlock(dbpool->dblist.thmutex);
+
+	return count;
+}

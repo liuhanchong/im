@@ -17,6 +17,7 @@ public:
 	int modifysql(char *sql);/*修改数据*/
 	int modifysqlex(char **sqlarray, int size);/*拓展的修改数据*/
 	int getrecordresult();/*获取结果集*/
+	int nextrow();/*获取下一行*/
 	void releaserecordresult();/*释放结果集*/
 	unsigned long getrecordcount();/*获取结果数量*/
 	char *getstring(char *field);/*获取字符串值*/
@@ -27,13 +28,13 @@ public:
 	int offrecordresult(int off);/*偏移结果集*/
 	int closedb();/*关闭数据库*/
 
-private:
-	unsigned long getaffectrow();/*sql操作影响的记录数*/
+public:
 	int isactive();/*数据库通讯是否正常*/
-	int resetconn();/*重新连接数据库*/
-	MYSQL_ROW getrowresult();/*获取结果集的一行数据*/
 	const char *getexecuteresult();/*获取执行一条sql的结果*/
 	char *geterror();/*获取错误信息*/
+
+private:
+	unsigned long getaffectrow();/*sql操作影响的记录数*/
 
 private:
 	struct dbconn dbconn;

@@ -24,6 +24,7 @@ public:
 	virtual int modifysql(char *sql) = 0;/*修改数据*/
 	virtual int modifysqlex(char **sqlarray, int size) = 0;/*拓展的修改数据*/
 	virtual int getrecordresult() = 0;/*获取结果集*/
+	virtual int nextrow() = 0;/*获取下一行*/
 	virtual void releaserecordresult() = 0;/*释放结果集*/
 	virtual unsigned long getrecordcount() = 0;/*获取结果数量*/
 	virtual char *getstring(char *field) = 0;/*获取字符串值*/

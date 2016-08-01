@@ -3,7 +3,7 @@
 
 #include <pthread.h>
 
-typedef unsigned long list_t;
+typedef int list_t;
 
 typedef struct queuenode
 {

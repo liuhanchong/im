@@ -20,18 +20,21 @@ int mydb::opendb(struct dbconn *conn)
 	mysql = mysql_init(NULL);
 	if (!mysql)
 	{
+		debuginfo("%s", geterror());
 		return FAILED;
 	}
 
 	if (!mysql_real_connect(mysql, conn->host, conn->user,
 							 conn->pass, conn->dbname, conn->port, conn->unixsock, conn->cliflag))
 	{
+		debuginfo("%s", geterror());
 		closedb();
 		return FAILED;
 	}
 
 	if (mysql_autocommit(mysql, 0) != 0)
 	{
+		debuginfo("%s", geterror());
 		closedb();
 		return FAILED;
 	}
@@ -64,13 +67,13 @@ int mydb::modifysql(char *sql)
 
 	if (mysql_real_query(mysql, sql, strlen(sql)) != 0)
 	{
-		debuginfo("mydb::modifysql mysql_real_query exe query failed, sql=%s", sql);
+		debuginfo("mydb::modifysql mysql_real_query exe query failed, sql=%s, err=%s", sql, geterror());
 		return FAILED;
 	}
 
 	if (mysql_commit(mysql) != 0)
 	{
-		debuginfo("mydb::modifysql mysql_commit failed");
+		debuginfo("mydb::modifysql mysql_commit failed, err=%s", geterror());
 		return FAILED;
 	}
 
@@ -88,11 +91,11 @@ int mydb::modifysqlex(char **sqlarray, int size)
 	{
 		if (mysql_query(mysql, sqlarray[i]) != 0)
 		{
-			debuginfo("mydb::modifysqlex mysql_query exe query failed, sql=%s", sqlarray[i]);
+			debuginfo("mydb::modifysqlex mysql_query exe query failed, sql=%s, err=%s", sqlarray[i], geterror());
 
 			if (mysql_rollback(mysql) != 0)
 			{
-				debuginfo("mydb::modifysqlex mysql_rollback failed");
+				debuginfo("mydb::modifysqlex mysql_rollback failed, err=%s", geterror());
 			}
 			return FAILED;
 		}
@@ -109,11 +112,13 @@ int mydb::modifysqlex(char **sqlarray, int size)
 int mydb::getrecordresult()
 {
 	result = mysql_store_result(mysql); 
-	if (result)
-	{
-		return SUCCESS;
-	}
-	return FAILED;
+	return (result) ? SUCCESS : FAILED;
+}
+
+int mydb::nextrow()
+{
+	MYSQL_ROW row = mysql_fetch_row(result);
+	return (row == NULL) ? FAILED : SUCCESS;
 }
 
 void mydb::releaserecordresult()
@@ -126,7 +131,7 @@ unsigned long mydb::getrecordcount()
 	return mysql_num_rows(result);
 }
 
-char *mydb::getstring(char *field)
+char *mydb::getstring(char * field)
 {
 	if (!field)
 	{
@@ -186,18 +191,7 @@ unsigned long mydb::getaffectrow()
 
 int mydb::isactive()
 {
-	return (mysql_ping(mysql) == 0) ? 1 : 0;
-}
-
-int mydb::resetconn()
-{
-	//mysql_reset_connection(pMySql);
-	return SUCCESS;
-}
-
-MYSQL_ROW mydb::getrowresult()
-{
-	return mysql_fetch_row(result);
+	return (mysql_ping(mysql) == 0) ? SUCCESS : FAILED;
 }
 
 const char *mydb::getexecuteresult()

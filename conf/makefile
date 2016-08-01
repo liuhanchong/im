@@ -6,6 +6,7 @@ blfile = ./logfile
 bmain = ..
 bconf = ./conf
 bpy = ../pyutil
+btest = ../test
 f = -DPRINTDEBUG
 CFLAGS = ${f}
 cc = gcc
@@ -67,9 +68,10 @@ dbpool : ${bdb}/dbpool.cpp ${bdb}/dbpool.h
 	g++ -c ${bdb}/dbpool.cpp
 
 clear :
-	rm -f *.o ${bcore}/*.gch ${blog}/*.gch ${bsock}/*.gch ${bmain}/im ${blfile}/*.log ${bpy}/*.pyc ${bpy}/*.gch ${bdb}/*.gch
+	rm -f *.o ${bcore}/*.gch ${blog}/*.gch ${bsock}/*.gch ${blfile}/*.log ${bpy}/*.pyc ${bpy}/*.gch ${bdb}/*.gch
 	rm -fd ${blfile}
 	rm -f pid
+	rm -f ${bmain}/im ${bmain}/tdb
 	clear
 
 clearlog :
@@ -94,5 +96,17 @@ rownum :
 	find ${bmain} -name "*.cpp" | xargs grep -v "'^$'" | wc -l
 	echo 'total代码行数 \c'
 	find ${bmain} -name '*.py' -or -name "*.c" -or -name "*.h" -or -name "*.cpp" | xargs grep -v "'^$'" | wc -l 
+
+tlink : util io log queue ${btest}/${tn} ${bdb}/mydb.* ${bdb}/db.* ${bdb}/dbpool.* 
+	g++ -c ${bdb}/mydb.cpp
+	g++ -c ${bdb}/db.cpp
+	g++ -c ${bdb}/dbpool.cpp
+	g++ io.o util.o log.o queue.o db.o mydb.o dbpool.o ${btest}/${tn} -o ../tdb -lmysqlclient
+
+trun :
+	make clear
+	make tlink tn=test_db.cpp
+	../tdb &
+
 
 
