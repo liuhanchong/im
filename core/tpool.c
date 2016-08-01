@@ -96,6 +96,16 @@ int destroytpool(tpool *tpool)
 		return FAILED;
 	}
 
+	looplist_for(tpool->tlist)
+	{
+		struct tnode *tnode = (struct tnode *)headquenode->data;
+		if (destroythread(tnode->thread) == FAILED)
+		{
+			debuginfo("destroytpool->destroythread failed");
+		}
+		free(tnode);
+	}
+
 	int ret = destroyqueue(&tpool->tlist);
 
 	free(tpool);
@@ -132,12 +142,18 @@ int addttask(tpool *tpool, void *(*fun)(void *), void *data)
 
 int delthread(tpool *tpool, tnode *tnode)
 {
-	int ret = 0;
+	int ret = FAILED;
 	lock(tpool->tlist.thmutex);
-	if (tnode)
+	looplist_for(tpool->tlist)
 	{
-		ret = destroythread(tnode->thread);
-		free(tnode);
+		struct tnode *ftnode = (struct tnode *)headquenode->data;
+		if (ftnode == tnode)
+		{
+			ret = destroythread(tnode->thread);
+			free(tnode);
+			dele(&tpool->tlist, headquenode);
+			break;
+		}
 	}
 	unlock(tpool->tlist.thmutex);
 	return ret;

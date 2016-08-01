@@ -116,6 +116,10 @@ int acceptsock(int servfd)
 		return -1;
 	}
 
+	char ip[20];
+	nettoip(AF_INET, (void *)&clisockaddr.sin_addr.s_addr, ip, 20);
+	errorinfo("%s->%s 接收的客户端IP为%s", "acceptsock", "accept", ip);
+
 	return clientsock;
 }
 

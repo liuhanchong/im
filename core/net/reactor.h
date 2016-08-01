@@ -2,6 +2,7 @@
 #define REACTOR_H
 
 #include "../queue.h"
+#include "../htable.h"
 #include "hbeat.h"
 #include <time.h>
 #include <signal.h>
@@ -19,14 +20,7 @@
 #define EV_ET 0x20 //边缘触发模式
 
 /*信号数量*/
-#define SIGNUM 128
-
-typedef struct eventhashtable
-{
-	struct event *uevehashtable;/*用户注册事件hash列表*/
-	pthread_mutex_t uevelistmutex;/*用户事件列表互斥锁*/
-	int uevelistlen;/*保存用户注册散列表长度*/
-} eventhashtable; 
+#define SIGNUM NSIG
 
 typedef struct signalevent
 {
@@ -40,7 +34,7 @@ typedef struct reactor
 {
 	int reactorid;
 	pthread_mutex_t reactormutex;/*反应堆锁*/
-	eventhashtable uevelist;/*用户注册读写事件hash列表*/
+	hashtable *uevelist;/*用户注册读写事件hash列表*/
 	list uactevelist;/*用户注册的活动事件列表*/
 	list utimersevelist;/*用户注册的计时器列表*/
 	signalevent usigevelist;/*用户注册的信号事件列表*/

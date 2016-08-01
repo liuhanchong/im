@@ -23,4 +23,6 @@ int getpidfromfile();
 
 int setpidtofile();
 
+int getcpucorenum();
+
 #endif

@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 
 int getmaxfilenumber()
 {
@@ -102,4 +103,17 @@ int setpidtofile()
 	}
 
 	return SUCCESS;
+}
+
+int getcpucorenum()
+{
+	#if defined (_WIN32)
+		#error no support operate system
+	#elif defined(__APPLE__) && defined(__MACH__)
+		return sysconf(_SC_NPROCESSORS_ONLN);
+	#elif defined(__linux__) || defined(_AIX) || defined(__FreeBSD__)  
+		return sysconf(_SC_NPROCESSORS_ONLN);
+	#else
+		#error no support operate system
+	#endif
 }

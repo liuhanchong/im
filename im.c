@@ -212,14 +212,16 @@ int main(int argc, char *argv[])
 		return 0;
 	}
 
-	int pid = getpid();
-	printf("本进程的ID为 %d\n", pid);
+	printf("the process id is %d\n", getpid());
+
 	setpidtofile();
 
 	//2.共享队列互斥处理
 	openlog();
 
-	if (setcorefilesize(10 * 1024 * 1024) == SUCCESS)
+	debuginfo("the system cpu core num is %d", getcpucorenum());
+
+	if (setcorefilesize(100 * 1024 * 1024) == SUCCESS)
 	{
 		debuginfo("set dump core file success size=%d", getcorefilesize());
 	}

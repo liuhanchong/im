@@ -1,49 +1,43 @@
-#ifndef MYDB_H
-#define MYDB_H
+#ifndef DB_H
+#define DB_H
 
-#include <mysql.h>
-#include <my_global.h>
-#include <my_sys.h>
-#include <memory.h>
-#include "../log/logmanage.h"
-#include "../config/configmanage.h"
+typedef struct dbconn
+{
+	char *host;
+	char *user;
+	char *pass;
+	char *dbname;
+	char *unixsock;
+	unsigned long cliflag;
+	unsigned int port;
+} dbconn;
 
-#define BeginTraveRecordResult(pMySql, pSql) \
-		if (ExecuteSelect(pMySql, pSql) == 1) \
-		{ \
-			MYSQL_RES *pResult = GetRecordResult(pMySql); \
-			if (GetRecordCount(pResult) > 0) \
-			{ \
-				MYSQL_ROW rowResult; \
-				OffsetRecordResult(pResult, 0); \
-				while ((rowResult = GetRowResult(pResult))) \
-				{
+class db
+{
+public:
+	db();
+	virtual ~db();
 
-#define EndTraveRecordResult() \
-				} \
-			} \
-			ReleaseRecordResult(pResult); \
-		}
+public:
+	virtual int opendb(struct dbconn *conn) = 0;/*打开数据库*/
+	virtual int querysql(char *sql) = 0;/*查询数据*/
+	virtual int modifysql(char *sql) = 0;/*修改数据*/
+	virtual int modifysqlex(char **sqlarray, int size) = 0;/*拓展的修改数据*/
+	virtual int getrecordresult() = 0;/*获取结果集*/
+	virtual void releaserecordresult() = 0;/*释放结果集*/
+	virtual unsigned long getrecordcount() = 0;/*获取结果数量*/
+	virtual char *getstring(char *field) = 0;/*获取字符串值*/
+	virtual int getint(char *field) = 0;/*获取int值*/
+	virtual float getfloat(char *field) = 0;/*获取float值*/
+	virtual double getdouble(char *field) = 0;/*获取double值*/
+	virtual int iseof() = 0;/*结果集是否到了末尾*/
+	virtual int offrecordresult(int off) = 0;/*偏移结果集*/
+	virtual int closedb() = 0;/*关闭数据库*/
 
-//接口
-MYSQL *OpenDB(char *pHost, char *pUser, char *pPasswd, char *pDB, char *pUnixSocket, unsigned long lClientFlag, unsigned int nPort);
-int ExecuteSelect(MYSQL *pMySql, char *sSql);
-int ExecuteModify(MYSQL *pMySql, char *sSql);
-int ExecuteModifyEx(MYSQL *pMySql, char **sSqlArray, int nSize);
-MYSQL_RES *GetRecordResult(MYSQL *pMySql);
-void ReleaseRecordResult(MYSQL_RES *pResult);
-unsigned long GetRecordCount(MYSQL_RES *pResult);
-unsigned long GetAffectRow(MYSQL *pMySql);
-char *GetStringValue(MYSQL_RES *pResult, char *pField);
-int GetIntValue(MYSQL_RES *pResult, char *pField);
-float GetFloatValue(MYSQL_RES *pResult, char *pField);
-double GetDoubleValue(MYSQL_RES *pResult, char *pField);
-int IsEOF(MYSQL_RES *pResult);
-int IsActive(MYSQL *pMySql);
-int ResetConnection(MYSQL *pMySql);
-int OffsetRecordResult(MYSQL_RES *pResult, int nOffset);
-MYSQL_ROW GetRowResult(MYSQL_RES *pResult);
-const char *GetExecuteSqlResultInfor(MYSQL *pMySql);
-int CloseDB(MYSQL *pMySql);
+private:
 
-#endif /* DB_DBCORE_H_ */
+private:
+
+};
+
+#endif /* DB_H */

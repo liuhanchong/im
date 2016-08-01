@@ -11,8 +11,14 @@ static void *handlefd(void *data)
 	heartbeat *hebeat = (heartbeat *)data;
 
 	int timdif = 0;
+	int rtconnnum = 0;
 	for (int i = 0; i < hebeat->connnum; i++)
 	{
+		if (hebeat->fd[i][2] == 1)
+		{
+			rtconnnum++;			
+		}
+		
 		if (hebeat->fd[i][2] != 1 ||
 			time(NULL) - hebeat->fdtime[i] < hebeat->connouttime)
 		{
@@ -30,10 +36,13 @@ static void *handlefd(void *data)
 			{
 				debuginfo("%s->%s success clientsock=%d", "handlefd", "outtime", hebeat->fd[i][0]);
 			}
+
+			rtconnnum--;
 		}
 	}
 
 	debuginfo("exe handlefd");
+	errorinfo("max conn num is %d, real time conn num is %d", hebeat->connnum, rtconnnum);
 
 	return NULL;
 }

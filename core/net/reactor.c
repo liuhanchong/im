@@ -50,11 +50,38 @@ static void sighandle(int sigid, siginfo_t *siginfo, void *data)
 	}
 }
 
-/*获取指定的socket事件在hash表位置*/
-static struct event *gethashevent(int fd, struct reactor *reactor)
+static htitem get(void *htable, void *arg)
 {
-	int hashindex = fd % reactor->uevelist.uevelistlen;
-	return &(reactor->uevelist.uevehashtable[hashindex]);
+	struct hashtable *ht = (struct hashtable *)htable;
+	int *key = (int *)arg;
+	int hashindex = *key % ht->tablelen;
+
+	struct event *uevent = NULL;
+	struct htnode *htnode = ht->hashtable[hashindex];
+	while (htnode)
+	{
+		uevent = (struct event *)htnode->item;
+		if (uevent->fd == *key)
+		{
+			return uevent;
+		}
+
+		htnode = htnode->next;
+	}
+
+	return NULL;
+}
+
+static int set(void *htable, htitem arg)
+{
+	struct event *uevent = (struct event *)arg;
+	struct hashtable *ht = (struct hashtable *)htable;
+	return uevent->fd % ht->tablelen;
+}
+
+static int del(void *htable, htitem arg)
+{
+	return FAILED;
 }
 
 /*获取事件*/
@@ -62,18 +89,8 @@ static event *getevent(int fd, reactor *reactor)
 {
 	assert((reactor != NULL && fd >= 0));
 
-	struct event *hashuevent = gethashevent(fd, reactor);
-	while (hashuevent)
-	{
-		if (hashuevent->fd == fd)
-		{
-			return hashuevent;
-		}
-
-		hashuevent = hashuevent->next;
-	}
-
-	return NULL;
+	struct event *uevent = getitemvalue(reactor->uevelist, &fd);
+	return uevent;
 }
 
 static int add(struct event *uevent, struct timespec *timer)
@@ -145,14 +162,7 @@ static int add(struct event *uevent, struct timespec *timer)
 		}
 
 		//加入到用户事件列表
-		struct event *hashuevent = gethashevent(uevent->fd, uevent->reactor);
-		while (hashuevent->next)
-		{
-			hashuevent = hashuevent->next;
-		}
-		hashuevent->next = uevent;
-		
-		return SUCCESS;
+		return setitem(uevent->reactor->uevelist, uevent);
 	}
 
 	return FAILED;
@@ -428,22 +438,17 @@ struct reactor *createreactor()
 	newreactor->maxconnnum = evenumber;
 
 	/*初始化hash表 链地址法处理冲突*/
-	newreactor->uevelist.uevelistlen = evenumber;
-	int uevelistsize = sizeof(struct event) * evenumber;
-	newreactor->uevelist.uevehashtable = (struct event *)malloc(uevelistsize);
-	if (newreactor->uevelist.uevehashtable == NULL)
+	newreactor->uevelist = createhashtable(evenumber, set, get, del);
+	if (!newreactor->uevelist)
 	{
 		free(newreactor);
 		return NULL;
 	}
-	memset(newreactor->uevelist.uevehashtable, 0, uevelistsize);
 
 	pthread_mutexattr_t mutexattr;
 	if (pthread_mutexattr_init(&mutexattr) != 0 ||
-		pthread_mutex_init(&newreactor->reactormutex, &mutexattr) != 0 ||
-		pthread_mutex_init(&newreactor->uevelist.uevelistmutex, &mutexattr) != 0)
+		pthread_mutex_init(&newreactor->reactormutex, &mutexattr) != 0)
 	{
-		free(newreactor->uevelist.uevehashtable);
 		free(newreactor);
 		return NULL;
 	}
@@ -452,7 +457,6 @@ struct reactor *createreactor()
 	newreactor->kevelist = (struct kevent *)malloc(sizeof(struct kevent) * evenumber);
 	if (newreactor->kevelist == NULL)
 	{
-		free(newreactor->uevelist.uevehashtable);
 		free(newreactor);
 		return NULL;
 	}
@@ -578,7 +582,7 @@ int delevent(event *uevent)
 			struct event *headuevent = (struct event *)headquenode->data;
 			if (headuevent == uevent)
 			{
-				delete(looplist, headquenode);
+				dele(looplist, headquenode);
 				return SUCCESS;
 			}
 		}
@@ -588,21 +592,7 @@ int delevent(event *uevent)
 
 	if (uevent->eventtype & EV_READ || uevent->eventtype & EV_WRITE)
 	{
-		struct event *prehashuevent = gethashevent(uevent->fd, uevent->reactor);
-		struct event *hashuevent = prehashuevent->next;
-		while (hashuevent)
-		{
-			if (hashuevent == uevent)
-			{
-				prehashuevent->next = hashuevent->next;
-				return SUCCESS;
-			}
-
-			prehashuevent = hashuevent;
-			hashuevent = hashuevent->next;
-		}
-
-		return FAILED;
+		return delitem(uevent->reactor->uevelist, uevent);
 	}
 
 	return FAILED;
@@ -643,20 +633,19 @@ int destroyreactor(reactor *reactor)
 	debuginfo("2");
 
 	//释放sock事件
-	for (int i = 0; i < reactor->uevelist.uevelistlen; i++)
+	struct htnode *htnode = NULL;
+	struct event *uevent = NULL;
+	for (int i = 0; i < reactor->uevelist->tablelen; i++)
 	{
-		struct event *unextevent = NULL;
-		struct event *uevent = reactor->uevelist.uevehashtable[i].next;
-		while (uevent)
+		htnode = reactor->uevelist->hashtable[i];
+		while (htnode)
 		{
-			unextevent = uevent->next;
+			uevent = (struct event *)htnode->item;
 			freeevent(uevent);
-			uevent = unextevent;
+			htnode = htnode->next;
 		}
 	}
-	free(reactor->uevelist.uevehashtable);
-
-	pthread_mutex_destroy(&reactor->uevelist.uevelistmutex);
+	destroyhashtable(reactor->uevelist);
 
 	debuginfo("3");
 

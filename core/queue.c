@@ -206,7 +206,7 @@ int clear(list *list)
 	return SUCCESS;
 }
 
-int delete(list *list, queuenode *node)
+int dele(list *list, queuenode *node)
 {
 	return deletenode(list, node);
 }

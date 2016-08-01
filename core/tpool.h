@@ -14,7 +14,6 @@ typedef struct tnode
 typedef struct tpool
 {
 	list tlist;
-
 	int maxtnum;/*最大线程数*/
 	int coretnum;/*核心的线程数*/	
 } tpool;

@@ -16,10 +16,11 @@ run :
 	clear
 	${bmain}/im &
 	cd .
-	top
+	cd .
+#	top
 
-link : ${bmain}/im.c util io log thread queue socket  reactor io tpool hbeat parsepy inface
-	$(cc) -pthread util.o io.o log.o thread.o queue.o socket.o reactor.o tpool.o hbeat.o parsepy.o inface.o ${bmain}/im.c -o ../im -std=c99 -lstdc++ -I/usr/include/python2.7/ -L/usr/lib/python2.7/ -lpython2.7
+link : ${bmain}/im.c util io log thread queue htable db mydb socket reactor io tpool hbeat parsepy inface dbpool
+	$(cc) -pthread util.o io.o log.o thread.o queue.o htable.o db.o mydb.o socket.o reactor.o tpool.o hbeat.o parsepy.o inface.o dbpool.o ${bmain}/im.c -o ../im -std=c99 -lstdc++ -I/usr/include/python2.7/ -L/usr/lib/python2.7/ -lpython2.7 -lmysqlclient
 
 log : ${blog}/log.* ${bcore}/util.h ${blog}/io.h
 	$(cc) ${CFLAGS} -std=c99 -c ${blog}/log.* ${bcore}/util.h ${blog}/io.h 
@@ -38,8 +39,8 @@ queue : ${bcore}/queue.* ${bcore}/util.h
 socket : ${bcore}/util.h ${bsock}/socket.* 
 	$(cc) -c ${bcore}/util.h ${bsock}/socket.* 
 
-reactor : ${bsock}/reactor.* ${bcore}/util.h ${bsock}/socket.h
-	$(cc) -c ${bsock}/reactor.* ${bcore}/util.h ${bsock}/socket.h
+reactor : ${bsock}/reactor.* ${bcore}/util.h ${bsock}/socket.h ${bcore}/htable.h
+	$(cc) -c ${bsock}/reactor.* ${bcore}/util.h ${bsock}/socket.h ${bcore}/htable.h
 
 tpool : ${bcore}/tpool.* ${bcore}/util.h ${bcore}/queue.h
 	$(cc) -std=c99 -c ${bcore}/tpool.* ${bcore}/util.h ${bcore}/queue.h
@@ -47,8 +48,8 @@ tpool : ${bcore}/tpool.* ${bcore}/util.h ${bcore}/queue.h
 hbeat : ${bcore}/util.h ${bsock}/hbeat.* ${bcore}/thread.h
 	$(cc) -std=c99 -c ${bcore}/util.h ${bsock}/hbeat.* ${bcore}/thread.h
 
-mydb : ${bcore}/util.h ${bdb}/mydb.*
-	$(cc) -c ${bcore}/util.h ${bdb}/mydb.* 
+htable : ${bcore}/util.h ${bcore}/htable.*
+	$(cc) -std=c99 -c ${bcore}/util.h ${bcore}/htable.* 
 
 parsepy : ${bpy}/parsepy.cpp ${bpy}/parsepy.h
 	g++ -c ${bpy}/parsepy.cpp
@@ -56,8 +57,17 @@ parsepy : ${bpy}/parsepy.cpp ${bpy}/parsepy.h
 inface : ${bpy}/inface.cpp ${bpy}/inface.h
 	g++ -c ${bpy}/inface.cpp
 
+mydb : ${bdb}/mydb.cpp ${bdb}/mydb.h
+	g++ -c ${bdb}/mydb.cpp
+
+db : ${bdb}/db.cpp ${bdb}/db.h
+	g++ -c ${bdb}/db.cpp
+
+dbpool : ${bdb}/dbpool.cpp ${bdb}/dbpool.h
+	g++ -c ${bdb}/dbpool.cpp
+
 clear :
-	rm -f *.o ${bcore}/*.gch ${blog}/*.gch ${bsock}/*.gch ${bmain}/im ${blfile}/*.log ${bpy}/*.pyc ${bpy}/*.gch
+	rm -f *.o ${bcore}/*.gch ${blog}/*.gch ${bsock}/*.gch ${bmain}/im ${blfile}/*.log ${bpy}/*.pyc ${bpy}/*.gch ${bdb}/*.gch
 	rm -fd ${blfile}
 	rm -f pid
 	clear
