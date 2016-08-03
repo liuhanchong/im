@@ -117,8 +117,7 @@ int mydb::getrecordresult()
 
 int mydb::nextrow()
 {
-	MYSQL_ROW row = mysql_fetch_row(result);
-	return (row == NULL) ? FAILED : SUCCESS;
+	return SUCCESS;
 }
 
 void mydb::releaserecordresult()
@@ -169,7 +168,8 @@ double mydb::getdouble(char *field)
 
 int mydb::iseof()
 {
-	return SUCCESS;
+	MYSQL_ROW row = mysql_fetch_row(result);
+	return (row == NULL) ? 0 : 1;
 }
 
 int mydb::offrecordresult(int off)

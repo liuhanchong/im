@@ -7,6 +7,7 @@ bmain = ..
 bconf = ./conf
 bpy = ../pyutil
 btest = ../test
+bwork = ../work
 f = -DPRINTDEBUG
 CFLAGS = ${f}
 cc = gcc
@@ -20,8 +21,13 @@ run :
 	cd .
 #	top
 
-link : ${bmain}/im.c util io log thread queue htable db mydb socket reactor io tpool hbeat parsepy inface dbpool
-	$(cc) -pthread util.o io.o log.o thread.o queue.o htable.o db.o mydb.o socket.o reactor.o tpool.o hbeat.o parsepy.o inface.o dbpool.o ${bmain}/im.c -o ../im -std=c99 -lstdc++ -I/usr/include/python2.7/ -L/usr/lib/python2.7/ -lpython2.7 -lmysqlclient
+link : ${bmain}/im.c util io log thread queue htable db mydb \
+	 socket reactor io tpool hbeat parsepy inface dbpool \
+	 login rdata handlereq datainface 
+	$(cc) -pthread util.o io.o log.o thread.o queue.o htable.o db.o mydb.o \
+	socket.o reactor.o tpool.o hbeat.o parsepy.o inface.o dbpool.o \
+	handlereq.o rdata.o login.o datainface.o ${bmain}/im.c \
+	-o ../im -std=c99 -lstdc++ -I/usr/include/python2.7/ -L/usr/lib/python2.7/ -lpython2.7 -lmysqlclient
 
 log : ${blog}/log.* ${bcore}/util.h ${blog}/io.h
 	$(cc) ${CFLAGS} -std=c99 -c ${blog}/log.* ${bcore}/util.h ${blog}/io.h 
@@ -66,6 +72,18 @@ db : ${bdb}/db.cpp ${bdb}/db.h
 
 dbpool : ${bdb}/dbpool.cpp ${bdb}/dbpool.h
 	g++ -c ${bdb}/dbpool.cpp
+
+login : ${bwork}/login.*
+	g++ -c ${bwork}/login.cpp
+
+rdata : ${bwork}/rdata.*
+	g++ -c ${bwork}/rdata.cpp
+
+handlereq : ${bwork}/handlereq.*
+	g++ -c ${bwork}/handlereq.cpp
+
+datainface : ${bwork}/datainface.*
+	g++ -c ${bwork}/datainface.cpp
 
 clear :
 	rm -f *.o ${bcore}/*.gch ${blog}/*.gch ${bsock}/*.gch ${blfile}/*.log ${bpy}/*.pyc ${bpy}/*.gch ${bdb}/*.gch

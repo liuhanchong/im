@@ -68,15 +68,17 @@ int main(int argc, char *argv[])
 
 	dbnode *dbnode3 = getdb(dbpool);
 	db *db3 = dbnode3->db;
-	char *sql2 = (char *)"select * from message t";
+	char *sql2 = (char *)"select * from message t where 1=1";
 	if (db3->querysql(sql2) == SUCCESS)
 	{
 		if (db3->getrecordresult() == SUCCESS)
 		{
-			while (db3->nextrow())
+			while (db3->iseof())
 			{
 				debuginfo("id=%s, messtype=%d, message=%s",
 				 db3->getstring((char *)"id"), db3->getint((char *)"messtype"), db3->getstring((char *)"message"));
+				
+				db3->nextrow();
 			}
 			db3->releaserecordresult();
 		}
