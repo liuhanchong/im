@@ -4,14 +4,15 @@
 #include <pthread.h>
 
 #define htitem void*
-
-typedef int (*htset)(void *htable, htitem arg);
-typedef htitem (*htget)(void *htable, void *arg);
-typedef int (*htdel)(void *htable, void *arg);
+#define hkey char*
 
 typedef struct htnode
 {
+	hkey key;/*保存key*/
+	int ksize;/*保存key size*/
+	unsigned long hkid;/*保存每个key的hash值*/
 	htitem item;
+	int isize;/*保存item size*/
 	struct htnode *next;
 } htnode;
 
@@ -19,18 +20,15 @@ typedef struct hashtable
 {
 	htnode **hashtable;/*hash列表*/
 	pthread_mutex_t tablemutex;/*互斥锁*/
+	pthread_mutex_t *tmslot;/*每个互斥锁槽加锁*/
 	int tablelen;/*散列表长度*/
-	htset set;/*设置方式*/
-	htget get;/*获取方式*/
-	htdel del;/*删除方式*/
 } hashtable; 
 
-hashtable *createhashtable(int tlen, htset set, htget get, htdel del);
+hashtable *createhashtable(int tlen);
 int destroyhashtable(hashtable *htable);
-int setitem(hashtable *htable, htitem item);
-htitem getitemvalue(hashtable *htable, void *key);
-int delitem(hashtable *htable, htitem item);
-int delitemex(hashtable *htable, void *key);
+int setitem(hashtable *htable, hkey key, htitem item);
+int delitem(hashtable *htable, hkey key);
+htitem getitemvalue(hashtable *htable, hkey key);
 int excap(hashtable *htable, int tlen);/*hashtable扩容*/
 
 #endif

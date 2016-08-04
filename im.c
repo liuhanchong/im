@@ -18,7 +18,7 @@ struct im imserv;
 
 void *eventcallback(void *event, void *arg)
 {
-//	debuginfo("eventcallback %d", *((int *)arg));
+	debuginfo("eventcallback %d", *((int *)arg));
 
 	return NULL;
 }
@@ -42,7 +42,7 @@ void *closesys(void *event, void *arg)
 
 void *signalalam(void *event, void *arg)
 {
-//	debuginfo("signalalam");
+	debuginfo("signalalam");
 
 	return NULL;
 }
@@ -77,7 +77,7 @@ int main(int argc, char *argv[])
 		return 0;
 	}
 
-	printf("the process id is %d\n", getpid());
+	printf("the process id is %d!\n", getpid());
 
 	setpidtofile();
 
@@ -113,7 +113,7 @@ int main(int argc, char *argv[])
 		debuginfo("main->cretcpser failed");
 		return 1;
 	}
-	debuginfo("main->cretcpser success");
+	debuginfo("main->cretcpser success serid=%d", imserv.servfd);
 	imserv.reactor->servfd = imserv.servfd;
 
 	// imserv.acceptthread = createthread(acceptconn, &imserv, 0);
@@ -135,17 +135,17 @@ int main(int argc, char *argv[])
 	debuginfo("main->createthread success");
 
 	int i = 100;
-	uevent = setevent(reactor, 1, EV_READ | EV_PERSIST, eventcallback, &i);
-	if (addevent(uevent) == SUCCESS)
-	{
-		debuginfo("%s", "addevent ok");
-	}
+	// uevent = setevent(reactor, 1, EV_READ | EV_PERSIST, eventcallback, &i);
+	// if (addevent(uevent) == SUCCESS)
+	// {
+	// 	debuginfo("%s", "addevent ok");
+	// }
 
-	uevent = setevent(reactor, 2, EV_READ | EV_PERSIST, eventcallback, &i);
-	if (addevent(uevent) == SUCCESS)
-	{
-		debuginfo("%s", "addevent ok");
-	}
+	// uevent = setevent(reactor, 2, EV_READ | EV_PERSIST, eventcallback, &i);
+	// if (addevent(uevent) == SUCCESS)
+	// {
+	// 	debuginfo("%s", "addevent ok");
+	// }
 
 	struct timespec timer = {1, 0};
 	uevent = setevent(reactor, -1, EV_TIMER, timercallback, &i);
@@ -188,13 +188,12 @@ int main(int argc, char *argv[])
 
 	if (destroyreactor(reactor) == SUCCESS)
 	{
-		debuginfo("%s\n", "reactor ok");
+		debuginfo("%s", "reactor ok");
 	}
 
+	debuginfo("%s", "close server success");
+
 	closelog();
-
-
-	printf("success close server");
 
 	return 1;
 }

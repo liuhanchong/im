@@ -20,6 +20,8 @@ void *acceptconn(void *uev, void *data)
 		return NULL;
 	}
 
+	debuginfo("accpet client success, cliid=%d", clientsock);
+
 	//将客户端socket设置为non_blocked
 	setnoblock(clientsock);
 
@@ -101,7 +103,7 @@ void *readwrite(void *event, void *arg)
 
 		if (addevent(urevent) == FAILED)
 		{
-			debuginfo("%s->%s failed clientsock=%d", "readwrite", "addevent", uevent->fd);
+			debuginfo("%s->%s failed clientsock=%d", "readwrite", "addevent", urevent->fd);
 			return NULL;
 		}
 	}

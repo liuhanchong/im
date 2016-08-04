@@ -11,6 +11,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <assert.h>
+#include <stdio.h>
 
 /*保存处理信号的reactor*/
 static struct reactor *sigreactor = NULL;
@@ -50,46 +51,14 @@ static void sighandle(int sigid, siginfo_t *siginfo, void *data)
 	}
 }
 
-static htitem get(void *htable, void *arg)
-{
-	struct hashtable *ht = (struct hashtable *)htable;
-	int *key = (int *)arg;
-	int hashindex = *key % ht->tablelen;
-
-	struct event *uevent = NULL;
-	struct htnode *htnode = ht->hashtable[hashindex];
-	while (htnode)
-	{
-		uevent = (struct event *)htnode->item;
-		if (uevent->fd == *key)
-		{
-			return uevent;
-		}
-
-		htnode = htnode->next;
-	}
-
-	return NULL;
-}
-
-static int set(void *htable, htitem arg)
-{
-	struct event *uevent = (struct event *)arg;
-	struct hashtable *ht = (struct hashtable *)htable;
-	return uevent->fd % ht->tablelen;
-}
-
-static int del(void *htable, htitem arg)
-{
-	return FAILED;
-}
-
 /*获取事件*/
 static event *getevent(int fd, reactor *reactor)
 {
 	assert((reactor != NULL && fd >= 0));
 
-	struct event *uevent = getitemvalue(reactor->uevelist, &fd);
+	char key[100];
+    sprintf(key, "%d", fd);
+	struct event *uevent = getitemvalue(reactor->uevelist, key);
 	return uevent;
 }
 
@@ -162,7 +131,9 @@ static int add(struct event *uevent, struct timespec *timer)
 		}
 
 		//加入到用户事件列表
-		return setitem(uevent->reactor->uevelist, uevent);
+		char key[100];
+    	sprintf(key, "%d", uevent->fd);
+		return setitem(uevent->reactor->uevelist, key, uevent);
 	}
 
 	return FAILED;
@@ -280,7 +251,7 @@ static int getactiveevent(reactor *reactor)
 	clear(&reactor->uactevelist);
 
 	//设置默认超时时间
-	struct timespec defaulttime = {3, 0};
+	struct timespec defaulttime = {0, 10000};
 	struct timespec mintimer = defaulttime;
 	if (getminouttimers(reactor, &mintimer) == SUCCESS 
 		&& timespeccompare(&defaulttime, &mintimer) == 1)
@@ -376,14 +347,6 @@ static int handleevent(reactor *reactor)
 		//读事件
 		else if (uevent->eventtype & EV_READ || uevent->eventtype & EV_WRITE)
 		{
-			if (uevent->callback(uevent, uevent->arg))
-			{
-				if (upheartbeat(uevent->reactor->hbeat, uevent->fd) == SUCCESS)
-				{
-					debuginfo("%s->%s success clientsock=%d", "handleevent", "upheartbeat", uevent->fd);
-				}
-			}
-
 			if (!(uevent->eventtype & EV_PERSIST))
 			{
 				if (delevent(uevent) == FAILED)
@@ -391,9 +354,19 @@ static int handleevent(reactor *reactor)
 					debuginfo("handleevent->del failed");
 				}
 
-				free(uevent);
-
 				debuginfo("del sock event success, this sock not is EV_PERSIST event");
+			}
+
+			uevent->callback(uevent, uevent->arg);
+
+			if (upheartbeat(uevent->reactor->hbeat, uevent->fd) == SUCCESS)
+			{
+				debuginfo("%s->%s success clientsock=%d", "handleevent", "upheartbeat", uevent->fd);
+			}
+
+			if (!(uevent->eventtype & EV_PERSIST))
+			{
+				free(uevent);
 			}
 		}
 	}
@@ -438,7 +411,7 @@ struct reactor *createreactor()
 	newreactor->maxconnnum = evenumber;
 
 	/*初始化hash表 链地址法处理冲突*/
-	newreactor->uevelist = createhashtable(evenumber, set, get, del);
+	newreactor->uevelist = createhashtable(evenumber);
 	if (!newreactor->uevelist)
 	{
 		free(newreactor);
@@ -592,7 +565,9 @@ int delevent(event *uevent)
 
 	if (uevent->eventtype & EV_READ || uevent->eventtype & EV_WRITE)
 	{
-		return delitem(uevent->reactor->uevelist, uevent);
+		char key[100];
+    	sprintf(key, "%d", uevent->fd);
+		return delitem(uevent->reactor->uevelist, key);
 	}
 
 	return FAILED;
@@ -726,27 +701,16 @@ int freeevent(struct event *uevent)
 }
 
 /*删除事件拓展函数*/
-int freeevent_ex(int fd, reactor *reactor)
+int freeeventex(int fd, reactor *reactor)
 {
 	//关闭的同时会自动将kqueue中的事件去掉
-	if (delheartbeat(reactor->hbeat, fd) == SUCCESS)
-	{
-		debuginfo("%s->%s success clientsock=%d", "freeevent_ex", "delheartbeat", fd);
-	}
-
-	if (close(fd) == -1)
-	{
-		debuginfo("%s->%s sock %d failed", "freeevent_ex", "close", fd);
-		return FAILED;
-	}
-
 	event *uevent = getevent(fd, reactor);
 	if (!uevent)
 	{
 		return FAILED;
 	}
 
-	delevent(uevent);
+	freeevent(uevent);
 
 	return SUCCESS;
 }

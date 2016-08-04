@@ -32,7 +32,7 @@ static void *handlefd(void *data)
 
 		if (hebeat->fd[i][1] >= hebeat->maxouttcount)
 		{
-			if (freeevent_ex(hebeat->fd[i][0], hebeat->reactor) == SUCCESS)
+			if (freeeventex(hebeat->fd[i][0], hebeat->reactor) == SUCCESS)
 			{
 				debuginfo("%s->%s success clientsock=%d", "handlefd", "outtime", hebeat->fd[i][0]);
 			}

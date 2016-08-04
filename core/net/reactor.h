@@ -82,9 +82,6 @@ int addevent(event *uevent);
 /*删除事件*/
 int delevent(event *uevent);
 
-/*删除事件拓展函数*/
-int freeevent_ex(int fd, reactor *reactor);
-
 /*分发消息*/
 int dispatchevent(reactor *reactor);
 
@@ -93,5 +90,8 @@ int destroyreactor(reactor *reactor);
 
 /*释放分配的事件*/
 int freeevent(struct event *uevent);
+
+/*删除事件拓展函数*/
+int freeeventex(int fd, reactor *reactor);
 
 #endif
