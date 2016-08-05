@@ -68,7 +68,7 @@ static int insertdb(struct dbpool *dbpool, struct dbconn *conn)
 	switch (dbpool->dbtype)
 	{
 		case 1: 
-			dbnode->db = new mydb();
+			dbnode->dbc = new mydb();
 			break;
 
 		case 2:
@@ -78,21 +78,21 @@ static int insertdb(struct dbpool *dbpool, struct dbconn *conn)
 			break;
 
 		default:
-			dbnode->db = new mydb();
+			dbnode->dbc = new mydb();
 			break;
 	}
 
-	if (!dbnode->db)
+	if (!dbnode->dbc)
 	{
 		destroydbconn(dbnode->conn);
 		free(dbnode);
 		return FAILED;
 	}
 
-	if (dbnode->db->opendb(dbnode->conn) == FAILED)
+	if (dbnode->dbc->opendb(dbnode->conn) == FAILED)
 	{
 		destroydbconn(dbnode->conn);
-		delete dbnode->db;
+		delete dbnode->dbc;
 		free(dbnode);
 		return FAILED;
 	}
@@ -102,8 +102,8 @@ static int insertdb(struct dbpool *dbpool, struct dbconn *conn)
 	if (push(&dbpool->dblist, dbnode, 0) == FAILED)
 	{
 		destroydbconn(dbnode->conn);
-		dbnode->db->closedb();
-		delete dbnode->db;
+		dbnode->dbc->closedb();
+		delete dbnode->dbc;
 		free(dbnode);
 		return FAILED;
 	}
@@ -146,11 +146,11 @@ int destroydbpool(dbpool *dbpool)
 	{
 		struct dbnode *dbnode = (struct dbnode *)headquenode->data;
 		destroydbconn(dbnode->conn);
-		if (dbnode->db->closedb() == FAILED)
+		if (dbnode->dbc->closedb() == FAILED)
 		{
 			debuginfo("destroydbpool->closedb failed");
 		}
-		delete dbnode->db;
+		delete dbnode->dbc;
 		free(dbnode);
 	}
 
@@ -182,7 +182,7 @@ int deldb(dbpool *dbpool, dbnode *dbnode)
 		struct dbnode *fdbnode = (struct dbnode *)headquenode->data;
 		if (fdbnode == dbnode)
 		{
-			ret = dbnode->db->closedb();
+			ret = dbnode->dbc->closedb();
 			free(dbnode);
 			dele(&dbpool->dblist, headquenode);
 			break;

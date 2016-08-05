@@ -11,7 +11,7 @@ extern "C"
 typedef struct dbnode
 {
 	struct dbconn *conn;
-	db *db;
+	db *dbc;
 	int use;/*使用标志 0-未使用 1-正在使用*/
 } dbnode;
 

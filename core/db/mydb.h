@@ -3,7 +3,6 @@
 
 #include "db.h"
 #include <mysql.h>
-#include <my_global.h>
 
 class mydb : public db
 {

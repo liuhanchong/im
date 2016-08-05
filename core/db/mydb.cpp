@@ -4,6 +4,7 @@ extern "C"
 	#include "../util.h"
 }
 #include <string.h>
+#include <stdlib.h>
 
 mydb::mydb()
 {
@@ -130,7 +131,7 @@ unsigned long mydb::getrecordcount()
 	return mysql_num_rows(result);
 }
 
-char *mydb::getstring(char * field)
+char *mydb::getstring(char *field)
 {
 	if (!field)
 	{

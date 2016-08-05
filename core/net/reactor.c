@@ -1,17 +1,5 @@
 #include "reactor.h"
 #include "../util.h"
-#include <sys/socket.h>
-#include <stdlib.h>
-#include <sys/types.h>
-#include <sys/event.h>
-#include <sys/time.h>
-#include <string.h>
-#include <time.h>
-#include <math.h>
-#include <unistd.h>
-#include <errno.h>
-#include <assert.h>
-#include <stdio.h>
 
 /*保存处理信号的reactor*/
 static struct reactor *sigreactor = NULL;
@@ -56,6 +44,7 @@ static event *getevent(int fd, reactor *reactor)
 {
 	assert((reactor != NULL && fd >= 0));
 
+	//获取事件
 	char key[100];
     sprintf(key, "%d", fd);
 	struct event *uevent = getitemvalue(reactor->uevelist, key);
@@ -101,16 +90,7 @@ static int add(struct event *uevent, struct timespec *timer)
 
 	if (uevent->eventtype & EV_READ || uevent->eventtype & EV_WRITE)
 	{
-		//获取监听的事件
-		int filter = (uevent->eventtype & EV_READ) ? EVFILT_READ : EVFILT_WRITE;
-
-		//设置添加操作
-		int flags = (uevent->eventtype & EV_PERSIST) ? EV_ADD : EV_ADD | EV_ONESHOT; 
-		
-		//加入到系统内核监听
-		struct kevent addkevent;
-		EV_SET(&addkevent, uevent->fd, filter, flags, 0, 0, NULL);
-		if (kevent(uevent->reactor->reactorid, &addkevent, 1, NULL, 0, NULL) == -1)
+		if (ctlev(uevent) == FAILED)
 		{
 			return FAILED;
 		}
@@ -202,8 +182,9 @@ static int loopsignal(reactor *reactor)
 
 	reactor->usigevelist.sigstate = 0;/*重置信号状态*/
 
+	int i = 0;
 	int sigid = 0;
-	for (int i = 1; i < SIGNUM; ++i)
+	for (i = 1; i < SIGNUM; ++i)
 	{
 		if ((sigid = reactor->usigevelist.sigid[i]) == 0)
 		{
@@ -251,17 +232,15 @@ static int getactiveevent(reactor *reactor)
 	clear(&reactor->uactevelist);
 
 	//设置默认超时时间
-	struct timespec defaulttime = {0, 10000};
-	struct timespec mintimer = defaulttime;
+	struct timespec mintimer = reactor->defaulttime;
 	if (getminouttimers(reactor, &mintimer) == SUCCESS 
-		&& timespeccompare(&defaulttime, &mintimer) == 1)
+		&& timespeccompare(&reactor->defaulttime, &mintimer) == 1)
 	{
-		memcpy(&mintimer, &defaulttime, sizeof(struct timespec));
+		memcpy(&mintimer, &reactor->defaulttime, sizeof(struct timespec));
 	}
 
 	//获取活动事件
-	int actevenum = kevent(reactor->reactorid, NULL, 0,
-							 reactor->kevelist, reactor->kevelistlen, &mintimer);
+	int actevenum = waitev(reactor, &mintimer);
 	if (actevenum == -1)
 	{
 		//对于信号中断不做处理
@@ -285,9 +264,10 @@ static int getactiveevent(reactor *reactor)
 	}
 
 	//获取活动的用户事件
-	for (int i = 0; i < actevenum; i++)
+	int i = 0;
+	for (i = 0; i < actevenum; i++)
 	{
-		struct event *hashuevent = getevent(reactor->kevelist[i].ident, reactor);
+		struct event *hashuevent = getevent(getfd(&reactor->kevelist[i]), reactor);
 		if (hashuevent != NULL)
 		{
 			push(&reactor->uactevelist, hashuevent, 0);
@@ -400,7 +380,7 @@ struct reactor *createreactor()
 	}
 	newreactor->hbeat->reactor = newreactor;
 
-	newreactor->reactorid = kqueue();
+	newreactor->reactorid = cre(10);
 	if (newreactor->reactorid == -1)
 	{
 		free(newreactor);
@@ -427,7 +407,7 @@ struct reactor *createreactor()
 	}
 
 	newreactor->kevelistlen = evenumber;
-	newreactor->kevelist = (struct kevent *)malloc(sizeof(struct kevent) * evenumber);
+	newreactor->kevelist = (struct eventt *)malloc(sizeof(struct eventt) * evenumber);
 	if (newreactor->kevelist == NULL)
 	{
 		free(newreactor);
@@ -454,6 +434,10 @@ struct reactor *createreactor()
 		destroyreactor(newreactor);
 		return NULL;
 	}
+
+	/*开启监听默认时间*/
+	newreactor->defaulttime.tv_sec = 1;
+	newreactor->defaulttime.tv_nsec = 0;
 
 	/*开启监听事件*/
 	newreactor->listen = 1;
@@ -565,6 +549,7 @@ int delevent(event *uevent)
 
 	if (uevent->eventtype & EV_READ || uevent->eventtype & EV_WRITE)
 	{
+		//删除事件
 		char key[100];
     	sprintf(key, "%d", uevent->fd);
 		return delitem(uevent->reactor->uevelist, key);
@@ -610,7 +595,8 @@ int destroyreactor(reactor *reactor)
 	//释放sock事件
 	struct htnode *htnode = NULL;
 	struct event *uevent = NULL;
-	for (int i = 0; i < reactor->uevelist->tablelen; i++)
+	int i = 0;
+	for (i = 0; i < reactor->uevelist->tablelen; i++)
 	{
 		htnode = reactor->uevelist->hashtable[i];
 		while (htnode)
@@ -658,6 +644,8 @@ int destroyreactor(reactor *reactor)
 
 	pthread_mutex_destroy(&reactor->reactormutex);
 
+	clo(reactor->reactorid);
+
 	free(reactor);
 
 	debuginfo("7");
@@ -692,6 +680,7 @@ int freeevent(struct event *uevent)
 		{
 			debuginfo("%s->%s sigid %d failed", "freeevent", "sigaction", uevent->fd);
 		}
+
 		free(uevent->oldsiga);
 	}
 
@@ -710,7 +699,5 @@ int freeeventex(int fd, reactor *reactor)
 		return FAILED;
 	}
 
-	freeevent(uevent);
-
-	return SUCCESS;
+	return freeevent(uevent);
 }
