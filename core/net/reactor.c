@@ -21,11 +21,22 @@ static void *clearevsig(void *event, void *arg)
 	return NULL;
 }
 
+static int lesigid(int sigid)
+{
+	return (sigid < SIGNUM && sigid > 0) ? 1 : 0;
+}
+
 static void sighandle(int sigid, siginfo_t *siginfo, void *data)
 {
 	if (sigreactor == NULL)
 	{
 		debuginfo("%s->%s null", "sighandle", "sigreactor");
+		return;
+	}
+
+	if (lesigid(sigid) == 0)
+	{
+		debuginfo("%s->%s is illeagal", "sighandle", "lesigid");
 		return;
 	}
 
