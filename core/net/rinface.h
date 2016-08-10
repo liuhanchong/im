@@ -55,7 +55,11 @@
 #define EV_CTL_DEL 0x100 //删除
 
 /*信号数量*/
+#ifdef NSIG
+#define SIGNUM NSIG
+#else
 #define SIGNUM 65
+#endif
 
 typedef struct signalevent
 {

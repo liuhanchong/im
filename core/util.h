@@ -2,6 +2,7 @@
 #define UTIL_H
 
 #include "./log/log.h"
+#include <sys/time.h>
 
 /*函数返回值*/
 #define SUCCESS 1
@@ -24,5 +25,7 @@ int getpidfromfile();
 int setpidtofile();
 
 int getcpucorenum();
+
+int timespeccompare(struct timespec *src, struct timespec *dest);
 
 #endif

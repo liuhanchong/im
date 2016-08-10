@@ -107,6 +107,8 @@ int main(int argc, char *argv[])
 	debuginfo("main->createreactor success");
 	imserv.reactor = reactor;
 
+	printf("the server ip is %s, port is %d\n", sysc.ip, sysc.port);
+
 	imserv.servfd = cretcpser((char *)sysc.ip, sysc.port, 10);
 	if (imserv.servfd < 0)
 	{

@@ -117,3 +117,12 @@ int getcpucorenum()
 		#error no support operate system
 	#endif
 }
+
+int timespeccompare(struct timespec *src, struct timespec *dest)
+{
+	/*0-相等 1-源<目的 -1源>目的*/
+	return (src->tv_sec < dest->tv_sec) ? 1 :
+			(src->tv_sec > dest->tv_sec) ? -1 : 
+			(src->tv_nsec < dest->tv_nsec) ? 1 : 
+			(src->tv_nsec > dest->tv_nsec) ? -1 : 0;
+}

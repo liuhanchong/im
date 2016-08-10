@@ -88,6 +88,9 @@ datainface : ${bwork}/datainface.*
 rinface : ${bsock}/rinface.* ${bcore}/util.h ${bcore}/queue.h ${bcore}/htable.h
 	$(cc) -c ${bsock}/rinface.* ${bcore}/util.h ${bcore}/queue.h ${bcore}/htable.h
 
+minheap : ${bcore}/util.h ${bcore}/minheap.*
+	$(cc) -std=c99 -c ${bcore}/util.h ${bcore}/minheap.* 
+
 clear :
 	rm -f *.o ${bcore}/*.gch ${blog}/*.gch ${bsock}/*.gch ${blfile}/*.log ${bpy}/*.pyc ${bpy}/*.gch ${bdb}/*.gch
 	rm -fd ${blfile}

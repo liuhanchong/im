@@ -79,8 +79,7 @@ static int add(struct event *uevent, struct timespec *timer)
 		}
 
 		//加入到用户事件列表
-		int ret = push(&uevent->reactor->usigevelist.usignalevelist, uevent, 0);
-		return ret;
+		return push(&uevent->reactor->usigevelist.usignalevelist, uevent, 0);
 	}
 
 	if (uevent->eventtype & EV_TIMER)
@@ -95,8 +94,7 @@ static int add(struct event *uevent, struct timespec *timer)
 		uevent->endtimer.tv_sec += curtime;
 
 		//加入到用户事件列表
-		int ret = push(&uevent->reactor->utimersevelist, uevent, 0);
-		return ret;
+		return push(&uevent->reactor->utimersevelist, uevent, 0);
 	}
 
 	if (uevent->eventtype & EV_READ || uevent->eventtype & EV_WRITE)
@@ -128,14 +126,6 @@ static int add(struct event *uevent, struct timespec *timer)
 	}
 
 	return FAILED;
-}
-
-static int timespeccompare(struct timespec *src, struct timespec *dest)
-{
-	return (src->tv_sec < dest->tv_sec) ? 1 :
-			(src->tv_sec > dest->tv_sec) ? -1 : 
-			(src->tv_nsec < dest->tv_nsec) ? 1 : 
-			(src->tv_nsec > dest->tv_nsec) ? -1 : 0;
 }
 
 static int timercompare(queuenode *src, queuenode *dest)

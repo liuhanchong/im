@@ -1,8 +1,8 @@
 #ifndef SOCKET_H
 #define SOCKET_H
 
-#include <stdint.h> 
 #include <netdb.h>
+#include <stdint.h> 
 
 /*创建socket*/
 int sock(int domain, int socktype, int protocol);
