@@ -94,7 +94,7 @@ static int add(struct event *uevent, struct timespec *timer)
 		uevent->endtimer.tv_sec += curtime;
 
 		//加入到用户事件列表
-		return push(&uevent->reactor->utimersevelist, uevent, 0);
+		return addhn(uevent->reactor->utimersevelist, uevent);
 	}
 
 	if (uevent->eventtype & EV_READ || uevent->eventtype & EV_WRITE)
@@ -142,14 +142,14 @@ static int getminouttimers(reactor *reactor, struct timespec *mintimer)
 	assert((reactor != NULL && mintimer != NULL));
 
 	//计算最小超时时间
-	queuenode *headquenode = gethead(&reactor->utimersevelist);
-	if (headquenode == NULL)
+	struct event *umintimevevt = getminvalue(reactor->utimersevelist);
+	if (umintimevevt == NULL)
 	{
 		return FAILED;
 	}
 
 	time_t curtime = time(NULL);
-	struct timespec headtimer = ((struct event *)headquenode->data)->endtimer;
+	struct timespec headtimer = umintimevevt->endtimer;
 	if (headtimer.tv_nsec > 0)
 	{
 		mintimer->tv_nsec = (long)(pow(10, 9) - headtimer.tv_nsec);
@@ -212,9 +212,10 @@ static int looptimers(reactor *reactor)
 
 	struct timespec curtime = {time(NULL), 0};
 
-	looplist_for(reactor->utimersevelist)
+	int i = 0;
+	for (i = 0; i < getheapsize(reactor->utimersevelist); i++)
 	{
-		struct event *headuevent = (struct event *)headquenode->data;
+		struct event *headuevent = (struct event *)getvaluebyindex(reactor->utimersevelist, i);
 		if (timespeccompare(&curtime, &headuevent->endtimer) == 1)
 		{
 			break;
@@ -423,7 +424,8 @@ struct reactor *createreactor()
 	}
 
 	/*计时器链表*/
-	if (createqueue(&newreactor->utimersevelist, 0, 2, timercompare) == FAILED)
+	newreactor->utimersevelist = createminheap(100);
+	if (newreactor->utimersevelist == NULL)
 	{
 		destroyreactor(newreactor);
 		return NULL;
@@ -529,23 +531,24 @@ int delevent(event *uevent)
 {
 	assert((uevent != NULL));
 
-	if ((uevent->eventtype & EV_SIGNAL) || (uevent->eventtype & EV_TIMER))
+	if (uevent->eventtype & EV_SIGNAL)
 	{
-		struct list *looplist = (uevent->eventtype & EV_SIGNAL) ? 
-									&uevent->reactor->usigevelist.usignalevelist : 
-									&uevent->reactor->utimersevelist;
-
-		looplist_for(*looplist)
+		looplist_for(uevent->reactor->usigevelist.usignalevelist)
 		{
 			struct event *headuevent = (struct event *)headquenode->data;
 			if (headuevent == uevent)
 			{
-				dele(looplist, headquenode);
+				dele(&uevent->reactor->usigevelist.usignalevelist, headquenode);
 				return SUCCESS;
 			}
 		}
 
 		return FAILED;
+	}
+
+	if (uevent->eventtype & EV_TIMER)
+	{
+		return delhn(uevent->reactor->utimersevelist, uevent);
 	}
 
 	if (uevent->eventtype & EV_READ || uevent->eventtype & EV_WRITE)
@@ -612,16 +615,15 @@ int destroyreactor(reactor *reactor)
 	debuginfo("3");
 
 	//释放计时器事件
-	queuenode *headquenode = NULL;
-	while (!empty(&reactor->utimersevelist))
+	for (i = 0; i < getheapsize(reactor->utimersevelist); i++)
 	{
-		headquenode = gethead(&reactor->utimersevelist);
-		freeevent(headquenode->data);
+		freeevent(getvaluebyindex(reactor->utimersevelist, i));
 	}
 
 	debuginfo("4");
 
 	//释放信号事件
+	queuenode *headquenode = NULL;
 	while (!empty(&reactor->usigevelist.usignalevelist))
 	{
 		headquenode = gethead(&reactor->usigevelist.usignalevelist);
@@ -635,7 +637,7 @@ int destroyreactor(reactor *reactor)
 	destroyheartbeat(reactor->hbeat);
 
 	destroyqueue(&reactor->uactevelist);
-	destroyqueue(&reactor->utimersevelist);
+	destroyminheap(reactor->utimersevelist);
 	destroyqueue(&reactor->usigevelist.usignalevelist);
 
 	debuginfo("6");

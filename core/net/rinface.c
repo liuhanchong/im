@@ -4,7 +4,7 @@
 int cre(int num)
 {
 	int fd = -1;
-#if defined (_WIN32)
+#if defined(_WIN32)
 	#error no support operate system
 
 #elif defined(__APPLE__) && defined(__MACH__)
@@ -26,7 +26,7 @@ int ctlev(struct event *uevent)
 	int flags = 0;
 	struct eventt addkevent;
 
-#if defined (_WIN32)
+#if defined(_WIN32)
 	#error no support operate system
 
 #elif defined(__APPLE__) && defined(__MACH__)
@@ -62,7 +62,7 @@ int waitev(struct reactor *reactor, struct timespec *ts)
 {
 	int actnum = -1;
 
-#if defined (_WIN32)
+#if defined(_WIN32)
 	#error no support operate system
 
 #elif defined(__APPLE__) && defined(__MACH__)
@@ -86,7 +86,7 @@ int clo(int fd)
 
 int getfd(struct eventt *uevent)
 {
-#if defined (_WIN32)
+#if defined(_WIN32)
 	#error no support operate system
 
 #elif defined(__APPLE__) && defined(__MACH__)

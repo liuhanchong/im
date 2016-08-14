@@ -107,7 +107,7 @@ int setpidtofile()
 
 int getcpucorenum()
 {
-	#if defined (_WIN32)
+	#if defined(_WIN32)
 		#error no support operate system
 	#elif defined(__APPLE__) && defined(__MACH__)
 		return sysconf(_SC_NPROCESSORS_ONLN);

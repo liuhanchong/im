@@ -72,6 +72,7 @@ struct minheap *createminheap(int size)
 
 	heap->size = size;
 	heap->cursize = 0;
+	heap->addsize = 10;
 
 	return heap;
 }
@@ -80,7 +81,7 @@ int addhn(struct minheap *heap, void *data)
 {
 	if (heap->size < heap->cursize + 1)
 	{
-		if (reverseminheap(heap, heap->size + 10) == FAILED)
+		if (reverseminheap(heap, heap->size + heap->addsize) == FAILED)
 		{
 			return FAILED;
 		}
@@ -107,8 +108,7 @@ int delhn(struct minheap *heap, void *data)
 	{
 		if (heap->head[i]->data == data)
 		{
-			--heap->cursize;
-			heap->head[i]->data = heap->head[heap->cursize]->data;
+			heap->head[i]->data = heap->head[--heap->cursize]->data;
 			int ret = movedown(heap, heap->head[i]);
 			free(heap->head[heap->cursize]);
 			return ret;
@@ -123,7 +123,7 @@ void *getminvalue(struct minheap *heap)
 	return (heap->head) ? (heap->head[0]->data) : NULL;
 }
 
-unsigned int getheapsize(struct minheap *heap)
+int getheapsize(struct minheap *heap)
 {
 	return heap->cursize;
 }
@@ -156,6 +156,11 @@ int reverseminheap(struct minheap *heap, int size)
 	heap->size = size;
 
 	return SUCCESS;
+}
+
+void *getvaluebyindex(struct minheap *heap, int index)
+{
+	return heap->head[index]->data;
 }
 
 int destroyminheap(struct minheap *heap)

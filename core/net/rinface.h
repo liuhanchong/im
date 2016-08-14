@@ -3,6 +3,7 @@
 
 #include "../queue.h"
 #include "../htable.h"
+#include "../minheap.h"
 #include <time.h>
 #include <signal.h>
 #include <sys/socket.h>
@@ -18,7 +19,7 @@
 #include <stdio.h>
 
 /*选择事件类型*/
-#if defined (_WIN32)
+#if defined(_WIN32)
 	#error no support operate system
 
 #elif defined(__APPLE__) && defined(__MACH__)
@@ -73,9 +74,9 @@ typedef struct reactor
 {
 	int reactorid;
 	pthread_mutex_t reactormutex;/*反应堆锁*/
-	hashtable *uevelist;/*用户注册读写事件hash列表*/
+	struct hashtable *uevelist;/*用户注册读写事件hash列表*/
 	list uactevelist;/*用户注册的活动事件列表*/
-	list utimersevelist;/*用户注册的计时器列表*/
+	struct minheap *utimersevelist;/*用户注册的计时器列表*/
 	signalevent usigevelist;/*用户注册的信号事件列表*/
 	struct eventt *kevelist;/*系统内核事件列表*/
 	int kevelistlen;/*系统注册时间列表*/
